@@ -8,7 +8,8 @@
     "test": "evidence build",
     "sources": "evidence sources",
     "sources:strict": "evidence sources --strict",
-    "preview": "evidence preview"
+    "preview": "evidence preview",
+    "build:pages": "npm run sources && npm run build && node scripts/externalize-wasm.mjs"
   },
   "engines": {
     "npm": ">=7.0.0",
