@@ -32,7 +32,7 @@
 <EvidenceDefaultLayout
 	{data}
 	title="Cattle Herd Demo"
-	homePageName="Overview"
+	homePageName="Herd Overview"
 	hideBreadcrumbs={true}
 >
 	<slot slot="content" />
