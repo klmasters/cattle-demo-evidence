@@ -31,7 +31,7 @@
      portfolio home page but links to the Overview page. -->
 <EvidenceDefaultLayout
 	{data}
-	title="Cattle Herd Demo"
+	title="Cattle Management Demo"
 	homePageName="Herd Overview"
 	hideBreadcrumbs={true}
 >
