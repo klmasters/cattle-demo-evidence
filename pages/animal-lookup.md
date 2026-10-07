@@ -14,6 +14,23 @@ order by cast(tag_number as integer)
 
 <Dropdown name=tag data={tags} value=tag_number title="Tag number" defaultValue="248" />
 
+**Not sure where to start? Try these tags:**
+
+| Tag | Animal | Why look |
+|-----|--------|----------|
+| 248 | Calf | Born, weighed three times, then sold in the winter sale |
+| 484 | Calf | The heaviest calf on record: 750 lb at its last weigh-in |
+| 664 | Calf | Born in April 2026 and still on the ranch |
+| 225 | Calf | Died in July 2022, three months after birth |
+| 101 | Cow | In the original herd, with five calves over five seasons |
+| 262 | Cow | Bought in 2022, then four calves and a yearly pregnancy check |
+| 106 | Cow | Culled in 2023 as an open cow, meaning not pregnant |
+| 368 | Cow | Bought in 2023 and found dead in December 2025 |
+| 272 | Bull | Bought in 2022 and still on the ranch |
+| 183 | Bull | Died in August 2025 |
+
+Bulls have only a single event each in this data, so their records are short.
+
 ```sql animal
 with latest as (
   select tag_number, event_type, location,
