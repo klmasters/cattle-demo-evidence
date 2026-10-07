@@ -1,21 +1,23 @@
+deployment:
+  # The site will be served at kennanmasters.com/ranch-demo/, so every URL needs this prefix.
+  basePath: /ranch-demo
+
 appearance:
-  default: system
-  switcher: true
+  # Light only, to match the portfolio (which has no dark mode).
+  default: light
+  switcher: false
 
 theme:
   colorPalettes:
     default:
+      # Chart colors: earthy like the portfolio, but more saturated than its page colors so
+      # chart lines stay distinct (checked with the dataviz palette validator on #faf9f4).
+      # Only these four are validated; a chart needing more series should fold them into "Other".
       light:
-        - "#236aa4"
-        - "#45a1bf"
-        - "#a5cdee"
-        - "#8dacbf"
-        - "#85c7c6"
-        - "#d2c6ac"
-        - "#f4b548"
+        - "#2f7d3c"
+        - "#e8843e"
+        - "#3f8fc4"
         - "#8f3d56"
-        - "#71b9f4"
-        - "#46a485"
       dark:
         - "#236aa4"
         - "#45a1bf"
@@ -30,21 +32,26 @@ theme:
   colorScales:
     default:
       light:
-        - "#ADD8E6"
-        - "#00008B"
+        - "#cfe3cf"
+        - "#17432a"
       dark:
         - "#ADD8E6"
         - "#00008B"
   colors:
+    # Page colors from the portfolio stylesheet (styles.css): leather, rust, cream, soil, bark.
     primary:
-      light: "#2563eb"
+      light: "#3d6642"
       dark: "#3b82f6"
     accent:
-      light: "#c2410c"
+      light: "#e8843e"
       dark: "#fdba74"
     base:
-      light: "#ffffff"
+      light: "#faf9f4"
       dark: "#09090b"
+    base-heading:
+      light: "#1c2e1f"
+    base-content:
+      light: "#2e4d31"
     info:
       light: "#0284c7"
       dark: "#38bdf8"

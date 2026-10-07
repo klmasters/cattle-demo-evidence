@@ -1,9 +1,20 @@
 ---
-title: Ranch Data Test
+title: Cattle Herd Demo
 ---
 
-```sql cattle_check
-select * from raw_current_cattle limit 10
+```sql by_breed
+select breed, count(*) as animals
+from raw_current_cattle
+group by 1
+order by 2 desc
 ```
 
-<DataTable data={cattle_check} />
+```sql total
+select count(*) as animals from raw_current_cattle
+```
+
+<KMStats>
+  <BigValue data={total} value=animals title="Active animals" />
+</KMStats>
+
+<KMBarChart data={by_breed} x=breed y=animals />
