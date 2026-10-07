@@ -1,0 +1,3 @@
+# Evidence writes every URL with the /ranch-demo/ prefix (basePath in evidence.config.yaml),
+# but the built files sit at the root of the build folder. Serve /ranch-demo/x from /x.
+/ranch-demo/*  /:splat  200
