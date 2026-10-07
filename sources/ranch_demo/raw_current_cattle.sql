@@ -1,0 +1,1 @@
+select * from ranch_demo.current_cattle
