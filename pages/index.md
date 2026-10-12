@@ -12,6 +12,28 @@ This report shows a snapshot of the current: every animal that has not been sold
   <BigValue data={total} value=cows title="Total cows" />
 </KMStats>
 
+<Grid cols=2>
+  <KMBarChart data={by_breed} x=breed y=animals title="Cattle by Breed" />
+  <KMBarChart data={by_location} x=location y=animals title="Cattle by Location" />
+</Grid>
+
+<KMBarChart data={by_birth_year} x=birth_year y=animals sort=false title="Cattle by Birth Year" />
+
+<Grid cols=2>
+  <KMBarChart data={weight_by_year} x=year y=avg_weight_lbs sort=false yFmt="#,##0" title="Average Final Weight Before Sale, by Year" />
+  <KMBarChart data={weight_by_breed} x=breed y=avg_weight_lbs yFmt="#,##0" title="Calf Final Weight Before Sale, by Breed" />
+</Grid>
+
+### Cows with the Highest Calf Sale Price
+<DataTable data={top_mothers} rows=10>
+  <Column id=cow title="Cow tag" />
+  <Column id=calves_sold title="Calves sold" />
+  <Column id=avg_sale_price title="Avg sale price per head" fmt="$#,##0" />
+  <Column id=avg_final_weight_lbs title="Avg final weight (lb)" fmt="#,##0" />
+</DataTable>
+
+<!-- Queries: kept at the bottom so the page layout reads top to bottom. -->
+
 ```sql total
 select
   count(*) as herd,
@@ -138,23 +160,3 @@ from last_weight
 group by 1
 order by 1
 ```
-
-<Grid cols=2>
-  <KMBarChart data={by_breed} x=breed y=animals title="Cattle by Breed" />
-  <KMBarChart data={by_location} x=location y=animals title="Cattle by Location" />
-</Grid>
-
-<KMBarChart data={by_birth_year} x=birth_year y=animals sort=false title="Cattle by Birth Year" />
-
-<Grid cols=2>
-  <KMBarChart data={weight_by_year} x=year y=avg_weight_lbs sort=false yFmt="#,##0" title="Average Final Weight Before Sale, by Year" />
-  <KMBarChart data={weight_by_breed} x=breed y=avg_weight_lbs yFmt="#,##0" title="Calf Final Weight Before Sale, by Breed" />
-</Grid>
-
-### Cows with the Highest Calf Sale Price
-<DataTable data={top_mothers} rows=10>
-  <Column id=cow title="Cow tag" />
-  <Column id=calves_sold title="Calves sold" />
-  <Column id=avg_sale_price title="Avg sale price per head" fmt="$#,##0" />
-  <Column id=avg_final_weight_lbs title="Avg final weight (lb)" fmt="#,##0" />
-</DataTable>

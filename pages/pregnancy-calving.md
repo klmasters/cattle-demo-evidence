@@ -5,6 +5,23 @@ sidebar_position: 2
 
 Pregnancy checks happen each fall and calving runs from January to April. The data is fake, generated for this demo.
 
+<div class="km-split">
+  <BigValue data={currently_pregnant} value=cows title="Currently pregnant" />
+  <KMBarChart data={due_by_month} x=due_month y=cows sort=false title="Expected due dates by month" />
+</div>
+
+### Pregnancies confirmed by month
+<KMBarChart data={confirmed_by_month} x=checked_month y=cows sort=false />
+
+### Calf to mother
+<DataTable data={calf_mother} rows=10 search=true>
+  <Column id=calf_tag title="Calf tag" />
+  <Column id=mother_tag title="Mother tag" />
+  <Column id=birth_date title="Birth date" fmt="yyyy-mm-dd" />
+</DataTable>
+
+<!-- Queries: kept at the bottom so the page layout reads top to bottom. -->
+
 ```sql currently_pregnant
 with last_check as (
   select tag_number, max(cast(event_date as date)) as check_date
@@ -59,18 +76,3 @@ where event_type = 'birth'
   and mother_tag_number in (select tag_number from raw_current_cattle)
 order by event_date desc, tag_number
 ```
-
-<div class="km-split">
-  <BigValue data={currently_pregnant} value=cows title="Currently pregnant" />
-  <KMBarChart data={due_by_month} x=due_month y=cows sort=false title="Expected due dates by month" />
-</div>
-
-### Pregnancies confirmed by month
-<KMBarChart data={confirmed_by_month} x=checked_month y=cows sort=false />
-
-### Calf to mother
-<DataTable data={calf_mother} rows=10 search=true>
-  <Column id=calf_tag title="Calf tag" />
-  <Column id=mother_tag title="Mother tag" />
-  <Column id=birth_date title="Birth date" fmt="yyyy-mm-dd" />
-</DataTable>

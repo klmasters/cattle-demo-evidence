@@ -148,6 +148,20 @@
 		gap: 1.5rem;
 		align-items: center;
 	}
+	/* Smaller numbers for a row of text-heavy tiles (wrap the <KMStats> row in this class). */
+	:global(.km-small-values .text-xl.font-medium) {
+		font-size: 2rem !important;
+	}
+
+	/* Smaller text for a side note (a paragraph and table wrapped in this class). */
+	:global(.km-small-text) {
+		font-size: 0.8rem;
+		line-height: 1.4;
+	}
+	:global(.km-small-text table) {
+		font-size: 0.8rem;
+	}
+
 	@media (max-width: 640px) {
 		:global(.km-split) {
 			grid-template-columns: 1fr;

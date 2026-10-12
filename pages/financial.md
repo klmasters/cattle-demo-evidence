@@ -5,6 +5,34 @@ sidebar_position: 3
 
 Money in and out of the herd, from the transactions on record. The data is fake, generated for this demo.
 
+<KMStats>
+  <BigValue data={totals} value=spent title="Spent on purchases" fmt=usd0 />
+  <BigValue data={totals} value=earned title="Earned from sales" fmt=usd0 />
+  <BigValue data={totals} value=net title="Net position" fmt=usd0 />
+</KMStats>
+
+### Purchases vs sales by year
+<KMBarChart data={by_year} x=year y=amount series=direction type=grouped yFmt=usd0 seriesColors={{ "Purchases": "#e8843e", "Sales": "#2f7d3c" }} />
+
+### Money in vs money out by month
+Months with no transactions show as zero.
+
+<KMLineChart data={by_month} x=month y=amount series=direction yFmt=usd0 xFmt="mmm yyyy" seriesColors={{ "Purchases": "#e8843e", "Sales": "#2f7d3c" }} />
+
+## Transactions
+
+### Recent transactions
+<DataTable data={recent} rows=10>
+  <Column id=transaction_date title="Date" fmt="yyyy-mm-dd" />
+  <Column id=type title="Type" />
+  <Column id=head_count title="Head" />
+  <Column id=price_per_head title="Price per head" fmt=usd0 />
+  <Column id=total_amount title="Total" fmt=usd0 />
+  <Column id=notes title="Notes" />
+</DataTable>
+
+<!-- Queries: kept at the bottom so the page layout reads top to bottom. -->
+
 ```sql totals
 select
   sum(total_amount) filter (where transaction_type = 'purchase') as spent,
@@ -61,29 +89,3 @@ select
 from raw_cattle_transactions
 order by transaction_date desc, transaction_id desc
 ```
-
-<KMStats>
-  <BigValue data={totals} value=spent title="Spent on purchases" fmt=usd0 />
-  <BigValue data={totals} value=earned title="Earned from sales" fmt=usd0 />
-  <BigValue data={totals} value=net title="Net position" fmt=usd0 />
-</KMStats>
-
-### Purchases vs sales by year
-<KMBarChart data={by_year} x=year y=amount series=direction type=grouped yFmt=usd0 seriesColors={{ "Purchases": "#e8843e", "Sales": "#2f7d3c" }} />
-
-### Money in vs money out by month
-Months with no transactions show as zero.
-
-<KMLineChart data={by_month} x=month y=amount series=direction yFmt=usd0 xFmt="mmm yyyy" seriesColors={{ "Purchases": "#e8843e", "Sales": "#2f7d3c" }} />
-
-## Transactions
-
-### Recent transactions
-<DataTable data={recent} rows=10>
-  <Column id=transaction_date title="Date" fmt="yyyy-mm-dd" />
-  <Column id=type title="Type" />
-  <Column id=head_count title="Head" />
-  <Column id=price_per_head title="Price per head" fmt=usd0 />
-  <Column id=total_amount title="Total" fmt=usd0 />
-  <Column id=notes title="Notes" />
-</DataTable>
