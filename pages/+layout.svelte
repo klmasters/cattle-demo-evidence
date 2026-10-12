@@ -2,7 +2,32 @@
 	import '@evidence-dev/tailwind/fonts.css';
 	import '../app.css';
 	import { EvidenceDefaultLayout } from '@evidence-dev/core-components';
+	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { base } from '$app/paths';
 	export let data;
+
+	// Evidence's sidebar marks the current page by comparing the address with the link, but the
+	// link has no basePath and the address does, so no link is ever marked (and the home link is
+	// always bold). This tags the sidebar link that matches the current address with
+	// data-km-active, and the home link with data-km-home; the CSS below does the styling.
+	// It re-runs on navigation and whenever the page DOM changes (the phone sidebar is built when
+	// it opens).
+	function markSidebar(path) {
+		const strip = (p) => p.replace(/\/+$/, '');
+		const current = strip(path);
+		document.querySelectorAll('.pretty-scrollbar a[href]').forEach((a) => {
+			const href = strip(a.getAttribute('href'));
+			a.toggleAttribute('data-km-active', href === current);
+			a.toggleAttribute('data-km-home', href === strip(base));
+		});
+	}
+	$: if (typeof document !== 'undefined') markSidebar($page.url.pathname);
+	onMount(() => {
+		const watcher = new MutationObserver(() => markSidebar(location.pathname));
+		watcher.observe(document.body, { childList: true, subtree: true });
+		return () => watcher.disconnect();
+	});
 
 	// The main site lives at the domain root; this site lives under /ag-data/.
 	const MAIN_SITE = 'https://kennanmasters.com';
@@ -34,6 +59,7 @@
 	title="Cattle Management Demo"
 	homePageName="Herd Overview"
 	hideBreadcrumbs={true}
+	hideTOC={true}
 >
 	<slot slot="content" />
 </EvidenceDefaultLayout>
@@ -101,6 +127,30 @@
 		}
 		:global(.fixed.top-20) {
 			top: calc(2rem + var(--km-bar)) !important;
+		}
+	}
+
+	/* Sidebar: the current page is bold and green. The home link is bold only on the home page;
+	   elsewhere it matches the other links (the gray is picked by eye to match Evidence's). */
+	:global(a[data-km-active]) {
+		font-weight: 600 !important;
+		color: var(--km-leather) !important;
+	}
+	:global(a[data-km-home]:not([data-km-active])) {
+		font-weight: 400 !important;
+		color: #6b7280 !important;
+	}
+
+	/* A narrow column for a big number beside a wide chart (Grid cols=2 gives each half). */
+	:global(.km-split) {
+		display: grid;
+		grid-template-columns: 14rem 1fr;
+		gap: 1.5rem;
+		align-items: center;
+	}
+	@media (max-width: 640px) {
+		:global(.km-split) {
+			grid-template-columns: 1fr;
 		}
 	}
 

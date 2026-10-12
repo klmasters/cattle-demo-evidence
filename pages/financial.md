@@ -50,15 +50,6 @@ left join monthly t on t.month = m.month and t.direction = d.direction
 order by 1, 2
 ```
 
-```sql avg_price
-select
-  case transaction_type when 'purchase' then 'Purchases' else 'Sales' end as direction,
-  round(sum(total_amount) / sum(head_count)) as price_per_head
-from raw_cattle_transactions
-group by 1
-order by 1
-```
-
 ```sql recent
 select
   cast(transaction_date as date) as transaction_date,
@@ -77,10 +68,6 @@ order by transaction_date desc, transaction_id desc
   <BigValue data={totals} value=net title="Net position" fmt=usd0 />
 </KMStats>
 
-Net position is sales minus purchases. It counts only the buying and selling of cattle, not feed, vet bills or other costs, so it is not profit.
-
-## Over time
-
 ### Purchases vs sales by year
 <KMBarChart data={by_year} x=year y=amount series=direction type=grouped yFmt=usd0 seriesColors={{ "Purchases": "#e8843e", "Sales": "#2f7d3c" }} />
 
@@ -88,13 +75,6 @@ Net position is sales minus purchases. It counts only the buying and selling of 
 Months with no transactions show as zero.
 
 <KMLineChart data={by_month} x=month y=amount series=direction yFmt=usd0 xFmt="mmm yyyy" seriesColors={{ "Purchases": "#e8843e", "Sales": "#2f7d3c" }} />
-
-## Prices
-
-### Average price per head
-Purchases are breeding stock (cows and bulls) and sales are almost all calves, so the two prices are not like for like.
-
-<KMBarChart data={avg_price} x=direction y=price_per_head series=direction yFmt=usd0 legend=false seriesColors={{ "Purchases": "#e8843e", "Sales": "#2f7d3c" }} />
 
 ## Transactions
 

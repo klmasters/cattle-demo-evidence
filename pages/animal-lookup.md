@@ -14,22 +14,26 @@ order by cast(tag_number as integer)
 
 <Dropdown name=tag data={tags} value=tag_number title="Tag number" defaultValue="248" />
 
-**Not sure where to start? Try these tags:**
+<KMStats>
+  <BigValue data={animal} value=breed title="Breed" />
+  <BigValue data={animal} value=type title="Type" />
+  <BigValue data={animal} value=birth_year title="Birth Year" fmt="0" />
+  <BigValue data={animal} value=location title="Last Location" />
+</KMStats>
 
-| Tag | Animal | Why look |
-|-----|--------|----------|
-| 248 | Calf | Born, weighed three times, then sold in the winter sale |
-| 484 | Calf | The heaviest calf on record: 750 lb at its last weigh-in |
-| 664 | Calf | Born in April 2026 and still on the ranch |
-| 225 | Calf | Died in July 2022, three months after birth |
-| 101 | Cow | In the original herd, with five calves over five seasons |
-| 262 | Cow | Bought in 2022, then four calves and a yearly pregnancy check |
-| 106 | Cow | Culled in 2023 as an open cow, meaning not pregnant |
-| 368 | Cow | Bought in 2023 and found dead in December 2025 |
-| 272 | Bull | Bought in 2022 and still on the ranch |
-| 183 | Bull | Died in August 2025 |
+<div class="km-split">
+  <div>
+    <BigValue data={animal} value=status title="Current Status" />
+    <BigValue data={purchase} value=purchase_date title="Purchase Date" />
+  </div>
+  <KMBarChart data={event_counts} x=event_type y=events title="Events by Type" />
+</div>
 
-Bulls have only a single event each in this data, so their records are short.
+<KMStats>
+  <BigValue data={extras} value=mother_tag title="Mother Tag" />
+  <BigValue data={extras} value=calves title="Calves Born" fmt="0" />
+  <BigValue data={extras} value=last_weight title="Last Weight (lb)" />
+</KMStats>
 
 ```sql animal
 with latest as (
@@ -69,6 +73,53 @@ left join last_weight w on true
 where l.rn = 1
 ```
 
+```sql extras
+-- Text fallbacks so animals without a mother or any weights show "None" instead of a blank tile.
+select
+  coalesce(mother_tag, 'None') as mother_tag,
+  calves,
+  coalesce(format('{:,}', cast(round(last_weight_lbs) as integer)), 'None') as last_weight
+from ${animal}
+```
+
+```sql purchase
+-- Animals born on the ranch or in the original herd have no purchase event.
+select coalesce(strftime(min(cast(event_date as date)), '%b %-d, %Y'), 'Not purchased') as purchase_date
+from raw_cattle_events
+where tag_number = '${inputs.tag.value}' and event_type = 'purchase'
+```
+
+```sql calves
+-- Calves of the selected cow. A transaction's tag_numbers is a comma-separated list, so split
+-- it into one row per tag and match exactly (a LIKE match would hit part of other tags).
+-- sold_date is text because a table formats a missing date as 1970-01-01.
+with last_weight as (
+  select tag_number, arg_max(weight_lbs, (cast(event_date as date), id)) as weight_lbs
+  from raw_cattle_events
+  where event_type = 'weight' and weight_lbs is not null
+  group by 1
+),
+sales as (
+  select
+    trim(unnest(string_split(tag_numbers, ','))) as tag_number,
+    cast(transaction_date as date) as sold_date,
+    price_per_head
+  from raw_cattle_transactions
+  where transaction_type = 'sale'
+)
+select
+  b.tag_number as calf_tag,
+  cast(b.event_date as date) as birth_date,
+  w.weight_lbs as most_recent_weight,
+  strftime(s.sold_date, '%Y-%m-%d') as sold_date,
+  s.price_per_head as sold_price
+from raw_cattle_events b
+left join last_weight w on w.tag_number = b.tag_number
+left join sales s on s.tag_number = b.tag_number
+where b.event_type = 'birth' and b.mother_tag_number = '${inputs.tag.value}'
+order by b.event_date
+```
+
 ```sql history
 select
   cast(event_date as date) as event_date,
@@ -95,20 +146,22 @@ where tag_number = '${inputs.tag.value}' and event_type = 'weight'
 order by event_date, id
 ```
 
-## Summary
-<DataTable data={animal} rows=1>
-  <Column id=tag title="Tag" />
-  <Column id=status title="Status" />
-  <Column id=type title="Type" />
-  <Column id=breed title="Breed" />
-  <Column id=location title="Location" />
-  <Column id=birth_year title="Birth year" fmt="0" />
-  <Column id=mother_tag title="Mother" />
-  <Column id=calves title="Calves born" />
-  <Column id=last_weight_lbs title="Last weight (lb)" fmt="#,##0" />
+## Calves
+{#if calves.length > 0}
+
+<DataTable data={calves} rows=10>
+  <Column id=calf_tag title="Calf tag" />
+  <Column id=birth_date title="Birth date" fmt="yyyy-mm-dd" />
+  <Column id=most_recent_weight title="Most recent weight (lb)" fmt="#,##0" />
+  <Column id=sold_date title="Sold date" />
+  <Column id=sold_price title="Sold price per head" fmt="$#,##0" />
 </DataTable>
 
-Status comes from the animal's latest event: Sold or Deceased if that is the last thing recorded, otherwise Active. Mother is blank for animals that were on the ranch before records began or were bought.
+{:else}
+
+This animal has no calves on record.
+
+{/if}
 
 ## Event history
 A birth and its birth weight are recorded on the same day, so a date can appear twice.
@@ -120,9 +173,6 @@ A birth and its birth weight are recorded on the same day, so a date can appear 
   <Column id=weight_lbs title="Weight (lb)" fmt="#,##0" />
 </DataTable>
 
-## Events by type
-<KMBarChart data={event_counts} x=event_type y=events />
-
 ## Weight history
 {#if weights.length > 0}
 
@@ -133,3 +183,18 @@ A birth and its birth weight are recorded on the same day, so a date can appear 
 No weights are on file for this animal. In this data only calves are weighed.
 
 {/if}
+
+**Not sure where to start? Try these tags:**
+
+| Tag | Animal | Why look |
+|-----|--------|----------|
+| 248 | Calf | Born, weighed three times, then sold in the winter sale |
+| 484 | Calf | The heaviest calf on record: 750 lb at its last weigh-in |
+| 664 | Calf | Born in April 2026 and still on the ranch |
+| 225 | Calf | Died in July 2022, three months after birth |
+| 101 | Cow | In the original herd, with five calves over five seasons |
+| 262 | Cow | Bought in 2022, then four calves and a yearly pregnancy check |
+| 106 | Cow | Culled in 2023 as an open cow, meaning not pregnant |
+| 368 | Cow | Bought in 2023 and found dead in December 2025 |
+| 272 | Bull | Bought in 2022 and still on the ranch |
+| 183 | Bull | Died in August 2025 |

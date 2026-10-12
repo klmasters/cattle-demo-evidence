@@ -32,6 +32,7 @@ select
   count(*) as cows
 from raw_cattle_events
 where event_type = 'pregnant'
+  and tag_number in (select tag_number from raw_current_cattle)
 group by 1, 2
 order by 2
 ```
@@ -43,27 +44,9 @@ select
   count(*) as cows
 from raw_cattle_events
 where event_type = 'pregnant'
+  and tag_number in (select tag_number from raw_current_cattle)
 group by 1, 2
 order by 2
-```
-
-```sql births_by_year
-select cast(year(cast(event_date as date)) as varchar) as year, count(*) as calves
-from raw_cattle_events
-where event_type = 'birth'
-group by 1
-order by 1
-```
-
-```sql births_by_month
-select
-  month(cast(event_date as date)) as month_num,
-  strftime(cast(event_date as date), '%b') as month,
-  count(*) as calves
-from raw_cattle_events
-where event_type = 'birth'
-group by 1, 2
-order by 1
 ```
 
 ```sql calf_mother
@@ -73,32 +56,17 @@ select
   cast(event_date as date) as birth_date
 from raw_cattle_events
 where event_type = 'birth'
+  and mother_tag_number in (select tag_number from raw_current_cattle)
 order by event_date desc, tag_number
 ```
 
-<KMStats>
+<div class="km-split">
   <BigValue data={currently_pregnant} value=cows title="Currently pregnant" />
-</KMStats>
-
-Currently pregnant means a cow still on the ranch whose latest pregnancy check has no birth after it. Calving is over by May, so this reads zero until the next fall's checks are added.
-
-## Pregnancies
-
-### Expected due dates by month
-Every pregnancy check on record, grouped by the month the calf was due.
-
-<KMBarChart data={due_by_month} x=due_month y=cows sort=false />
+  <KMBarChart data={due_by_month} x=due_month y=cows sort=false title="Expected due dates by month" />
+</div>
 
 ### Pregnancies confirmed by month
 <KMBarChart data={confirmed_by_month} x=checked_month y=cows sort=false />
-
-## Calving
-
-### Calves born by year
-<KMBarChart data={births_by_year} x=year y=calves />
-
-### Calves born by month, all years
-<KMBarChart data={births_by_month} x=month y=calves sort=false />
 
 ### Calf to mother
 <DataTable data={calf_mother} rows=10 search=true>
