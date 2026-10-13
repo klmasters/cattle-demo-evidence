@@ -154,3 +154,10 @@ test('xlsx input: date cells, numeric tags, tab names, ignored Herd tab', async 
 test('a non-xlsx file is rejected with a plain message', async () => {
   await assert.rejects(parseXlsx(new TextEncoder().encode('hello').buffer), /Could not read/)
 })
+
+test('Excel date numbers (a date saved without a date format) are accepted', () => {
+  const r = run(events(['901', 46308, 'weight', 'Ranch', 'Black Angus', 'Calf', 90, null, null, null]))
+  assert.equal(r.ok, true, JSON.stringify(r.errors))
+  assert.equal(r.events[0].event_date, '2026-10-13')
+  assert.equal(run(events(['901', 5, 'weight', 'Ranch', 'Black Angus', 'Calf', 90, null, null, null])).ok, false)
+})

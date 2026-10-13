@@ -51,8 +51,16 @@ function isoDate(year, month, day) {
   return `${String(year).padStart(4, '0')}-${pad(month)}-${pad(day)}`
 }
 
-// Accepts a Date cell, 2026-05-28 (optionally followed by a time), or 5/28/2026.
+// Accepts a Date cell, an Excel date number, 2026-05-28 (optionally followed by a time),
+// or 5/28/2026. Excel counts days from 1899-12-30; some programs save dates as that plain
+// number without a date format, so 46308 means 2026-10-13. Only numbers in a plausible
+// range (years 2000 to 2100) count as dates.
 function parseDate(value) {
+  if (typeof value === 'number') {
+    if (!Number.isInteger(Math.floor(value)) || value < 36526 || value > 73050) return null
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * 86400000)
+    return isoDate(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate())
+  }
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null
     return isoDate(value.getUTCFullYear(), value.getUTCMonth() + 1, value.getUTCDate())
