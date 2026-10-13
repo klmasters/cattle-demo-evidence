@@ -81,7 +81,7 @@ A birth and its birth weight are recorded on the same day, so a date can appear 
 select tag_number
 from raw_cattle_events
 group by 1
-order by cast(tag_number as integer)
+order by try_cast(tag_number as integer) nulls last, tag_number
 ```
 
 ```sql animal
