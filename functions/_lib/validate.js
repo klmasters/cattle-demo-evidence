@@ -247,7 +247,7 @@ export function validate(sheets, options = {}) {
     }
     if (v.estimated_months_pregnant != null) {
       const n = parseNumber(v.estimated_months_pregnant)
-      if (n === null || n < 0 || n > 10) error(S, row, 'estimated_months_pregnant', `"${v.estimated_months_pregnant}" is not a number between 0 and 10.`)
+      if (n === null || !Number.isInteger(n) || n < 0 || n > 10) error(S, row, 'estimated_months_pregnant', `"${v.estimated_months_pregnant}" is not a whole number of months between 0 and 10.`)
       else out.estimated_months_pregnant = n
     }
     for (const c of ['estimated_preg_date', 'estimated_due_month']) {

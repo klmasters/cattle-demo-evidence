@@ -10,7 +10,7 @@
     "sources:strict": "evidence sources --strict",
     "preview": "evidence preview",
     "build:pages": "npm run sources && npm run build && node scripts/externalize-wasm.mjs",
-    "test:upload": "node --test tests/upload.test.js"
+    "test:upload": "node --test tests/upload.test.js tests/endpoint.test.js"
   },
   "engines": {
     "npm": ">=7.0.0",
@@ -32,6 +32,7 @@
     "@evidence-dev/source-javascript": "^0.0.3",
     "@evidence-dev/sqlite": "^2.0.9",
     "@evidence-dev/trino": "^1.0.11",
+    "@neondatabase/serverless": "^1.2.0",
     "papaparse": "^5.7.0",
     "read-excel-file": "^9.3.12"
   },
