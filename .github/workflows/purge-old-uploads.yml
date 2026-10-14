@@ -1,0 +1,24 @@
+name: Purge old demo uploads
+
+# Visitor uploads are demo data: batches older than 7 days are marked voided, so they drop out
+# of the dashboards. Rows are never deleted (the event log is append-only). Batches with no
+# upload record (the generated demo data) are not touched.
+on:
+  schedule:
+    - cron: '0 9 * * *'   # daily; GitHub may start it a few hours late, which does not matter
+  workflow_dispatch:      # "Run workflow" button
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Void uploads older than 7 days
+        env:
+          # Connection string for the ranch_purger role (can only update upload_batches.voided).
+          DATABASE_URL: ${{ secrets.PURGE_DB_URL }}
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "
+            update ranch_demo.upload_batches
+               set voided = true
+             where voided is not true
+               and uploaded_at < now() - interval '7 days'"
