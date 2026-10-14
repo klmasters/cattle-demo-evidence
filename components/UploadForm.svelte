@@ -5,6 +5,13 @@
 -->
 <script>
 	import { base } from '$app/paths';
+	import { onMount } from 'svelte';
+
+	// Public half of the Turnstile widget (the secret half lives in Cloudflare).
+	const TURNSTILE_SITE_KEY = '0x4AAAAAAFWwILY3pKIpeGIf';
+	let widgetBox;
+	let widgetId = null;
+	let token = '';
 
 	let file = null;
 	let transactionsFile = null;
@@ -14,6 +21,24 @@
 	let showAllErrors = false;
 
 	const SHOWN = 25;
+
+	// Load Cloudflare's script once, then draw the check into the box above the Upload button.
+	onMount(() => {
+		const draw = () => {
+			widgetId = window.turnstile.render(widgetBox, {
+				sitekey: TURNSTILE_SITE_KEY,
+				callback: (t) => (token = t),
+				'expired-callback': () => (token = ''),
+				'error-callback': () => (token = ''),
+			});
+		};
+		if (window.turnstile) return draw();
+		const script = document.createElement('script');
+		script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+		script.async = true;
+		script.onload = draw;
+		document.head.appendChild(script);
+	});
 
 	async function submit() {
 		result = null;
@@ -26,6 +51,11 @@
 			result = { ok: false, message: 'Choose a file or paste a Google Sheets link first.' };
 			return;
 		}
+		if (!token) {
+			result = { ok: false, message: 'Please wait for the "are you a person" check above the button to finish.' };
+			return;
+		}
+		form.append('cf-turnstile-response', token);
 		busy = true;
 		try {
 			const response = await fetch(`${base}/api/upload`, { method: 'POST', body: form });
@@ -34,6 +64,9 @@
 			result = { ok: false, message: 'Could not reach the server. Check your connection and try again.' };
 		} finally {
 			busy = false;
+			// A token works once, so get a fresh one for the next try.
+			token = '';
+			if (widgetId !== null && window.turnstile) window.turnstile.reset(widgetId);
 		}
 	}
 
@@ -56,6 +89,7 @@
 		<span>Or a public Google Sheets link</span>
 		<input type="url" placeholder="https://docs.google.com/spreadsheets/d/..." bind:value={sheetUrl} />
 	</label>
+	<div bind:this={widgetBox}></div>
 	<button type="submit" disabled={busy}>{busy ? 'Checking…' : 'Upload'}</button>
 </form>
 

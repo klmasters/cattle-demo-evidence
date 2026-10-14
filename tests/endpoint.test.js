@@ -129,3 +129,34 @@ test('GET is not allowed', async () => {
   const res = await handleUpload(new Request('https://example.test/x'), fakeDb().deps)
   assert.equal(res.status, 405)
 })
+
+test('a failed bot check returns 403 and nothing is read or saved', async () => {
+  const db = fakeDb()
+  const { status, body } = await run(post({ file: xlsxFile() }), { ...db.deps, verifyHuman: async () => false })
+  assert.equal(status, 403)
+  assert.equal(body.ok, false)
+  assert.equal(db.queries.length, 0)
+})
+
+test('a passing bot check gets the token and ip, then the upload goes through', async () => {
+  const db = fakeDb()
+  let seen
+  const verifyHuman = async (token, ip) => { seen = [token, ip]; return true }
+  const request = post({ file: xlsxFile(), 'cf-turnstile-response': 'tok123' })
+  request.headers.set?.('cf-connecting-ip', '1.2.3.4')
+  const { status } = await run(request, { ...db.deps, verifyHuman })
+  assert.equal(status, 200)
+  assert.equal(seen[0], 'tok123')
+})
+
+test('verifier sends the secret and token to Cloudflare and trusts only success: true', async () => {
+  const { makeVerifier } = await import('../functions/_lib/turnstile.js')
+  let sent
+  const ok = makeVerifier('sekret', async (url, init) => { sent = [url, init.body.get('secret'), init.body.get('response')]; return { json: async () => ({ success: true }) } })
+  assert.equal(await ok('tok', '1.2.3.4'), true)
+  assert.deepEqual(sent, ['https://challenges.cloudflare.com/turnstile/v0/siteverify', 'sekret', 'tok'])
+  assert.equal(await makeVerifier('sekret', async () => ({ json: async () => ({ success: false }) }))('tok'), false)
+  assert.equal(await makeVerifier('sekret', async () => { throw new Error('down') })('tok'), false)
+  assert.equal(await makeVerifier('', async () => ({ json: async () => ({ success: true }) }))('tok'), false)
+  assert.equal(await makeVerifier('sekret', async () => ({ json: async () => ({ success: true }) }))(''), false)
+})

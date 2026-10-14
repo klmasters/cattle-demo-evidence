@@ -9,9 +9,10 @@ const json = (body, status = 200) =>
 
 /**
  * @param {Request} request
- * @param {{ withClient: (fn: (client) => Promise<any>) => Promise<any>, fetch?: typeof fetch }} deps
+ * @param {{ withClient: (fn: (client) => Promise<any>) => Promise<any>, fetch?: typeof fetch,
+ *           verifyHuman?: (token: string, ip: string | null) => Promise<boolean> }} deps
  */
-export async function handleUpload(request, { withClient, fetch: fetchFn = fetch }) {
+export async function handleUpload(request, { withClient, fetch: fetchFn = fetch, verifyHuman }) {
   if (request.method !== 'POST') return json({ ok: false, message: 'Use POST.' }, 405)
   if (Number(request.headers.get('content-length') ?? 0) > 3 * 1024 * 1024) {
     return json({ ok: false, message: 'The upload is too large.' }, 413)
@@ -23,6 +24,14 @@ export async function handleUpload(request, { withClient, fetch: fetchFn = fetch
       form = await request.formData()
     } catch {
       return json({ ok: false, message: 'Could not read the upload.' }, 400)
+    }
+    // Bot check first, before any file is read. The live endpoint always supplies verifyHuman.
+    if (verifyHuman) {
+      const token = form.get('cf-turnstile-response')
+      const ip = request.headers.get('cf-connecting-ip')
+      if (!(await verifyHuman(typeof token === 'string' ? token : '', ip))) {
+        return json({ ok: false, message: 'The "are you a person" check did not pass. Reload the page and try again.' }, 403)
+      }
     }
     const { sheets, filename } = await sheetsFromForm(form, fetchFn)
 
