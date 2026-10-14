@@ -39,6 +39,16 @@ export async function loadHerd(client, tags) {
   ]))
 }
 
+// How many batches this uploader (a hashed address, see hashIp) saved in the last hour.
+export async function recentUploads(client, uploader) {
+  const { rows } = await client.query(
+    `select count(*)::int as n from ranch_demo.upload_batches
+      where uploader_hash = $1 and uploaded_at > now() - interval '1 hour'`,
+    [uploader],
+  )
+  return rows[0].n
+}
+
 function insertRows(table, columns, rows) {
   // One multi-row INSERT: (batch_id, c1, c2, ...) values ($1,$2,...), (...), ...
   const params = []
@@ -56,15 +66,15 @@ function insertRows(table, columns, rows) {
  * Saves a validated upload in one transaction.
  * Returns { duplicate: true } if the same content was already uploaded, else { batchId }.
  */
-export async function saveUpload(client, { filename, hash, events, transactions }) {
+export async function saveUpload(client, { filename, hash, events, transactions, uploader = null }) {
   await client.query('begin')
   try {
     const batch = await client.query(
-      `insert into ranch_demo.upload_batches (filename, file_hash, row_count)
-       values ($1, $2, $3)
+      `insert into ranch_demo.upload_batches (filename, file_hash, row_count, uploader_hash)
+       values ($1, $2, $3, $4)
        on conflict (file_hash) do nothing
        returning batch_id`,
-      [filename, hash, events.length],
+      [filename, hash, events.length, uploader],
     )
     if (batch.rows.length === 0) {
       await client.query('rollback')

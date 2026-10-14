@@ -13,6 +13,7 @@ function fakeDb({ herdRows = [], duplicate = false } = {}) {
   const client = {
     async query(sql, params) {
       queries.push({ sql: sql.replace(/\s+/g, ' ').trim(), params })
+      if (/count\(\*\)/.test(sql)) return { rows: [{ n: 0 }] }
       if (/distinct on/.test(sql)) return { rows: herdRows }
       if (/insert into ranch_demo.upload_batches/.test(sql)) return { rows: duplicate ? [] : [{ batch_id: BATCH_ID }] }
       return { rows: [] }
@@ -159,4 +160,33 @@ test('verifier sends the secret and token to Cloudflare and trusts only success:
   assert.equal(await makeVerifier('sekret', async () => { throw new Error('down') })('tok'), false)
   assert.equal(await makeVerifier('', async () => ({ json: async () => ({ success: true }) }))('tok'), false)
   assert.equal(await makeVerifier('sekret', async () => ({ json: async () => ({ success: true }) }))(''), false)
+})
+
+test('rate limit: a visitor with 5 saved uploads in the last hour gets 429 and nothing else runs', async () => {
+  const queries = []
+  const client = { async query(sql, params) { queries.push(sql); return { rows: [{ n: 5 }] } } }
+  const request = post({ file: xlsxFile() })
+  request.headers.set('cf-connecting-ip', '9.9.9.9')
+  const { status, body } = await run(request, { withClient: (fn) => fn(client), hashIp: async (ip) => 'h:' + ip })
+  assert.equal(status, 429)
+  assert.equal(body.ok, false)
+  assert.equal(queries.length, 1)
+})
+
+test('rate limit: under the limit the upload saves and records the hashed address', async () => {
+  const db = fakeDb()
+  const request = post({ file: xlsxFile() })
+  request.headers.set('cf-connecting-ip', '9.9.9.9')
+  const { status } = await run(request, { ...db.deps, hashIp: async (ip) => 'h:' + ip })
+  assert.equal(status, 200)
+  const batchInsert = db.queries.find((q) => /insert into ranch_demo.upload_batches/.test(q.sql))
+  assert.equal(batchInsert.params[3], 'h:9.9.9.9')
+})
+
+test('ip hasher is stable, keyed and never returns the address', async () => {
+  const { makeIpHasher } = await import('../functions/_lib/haship.js')
+  const a = await makeIpHasher('k1')('1.2.3.4')
+  assert.equal(a, await makeIpHasher('k1')('1.2.3.4'))
+  assert.notEqual(a, await makeIpHasher('k2')('1.2.3.4'))
+  assert.equal(a.includes('1.2.3.4'), false)
 })

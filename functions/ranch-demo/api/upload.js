@@ -5,10 +5,12 @@
 import { Pool } from '@neondatabase/serverless'
 import { handleUpload } from '../../_lib/handle.js'
 import { makeVerifier } from '../../_lib/turnstile.js'
+import { makeIpHasher } from '../../_lib/haship.js'
 
 export async function onRequest({ request, env }) {
   return handleUpload(request, {
     verifyHuman: makeVerifier(env.TURNSTILE_SECRET_KEY),
+    hashIp: makeIpHasher(env.TURNSTILE_SECRET_KEY), // keyed with the same secret; only the hash is stored
     async withClient(fn) {
       const pool = new Pool({ connectionString: env.NEON_UPLOAD_URL })
       const client = await pool.connect()
