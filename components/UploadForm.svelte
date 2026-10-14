@@ -76,7 +76,11 @@
 	const where = (i) => [i.sheet, i.row ? `row ${i.row}` : null, i.column].filter(Boolean).join(', ');
 </script>
 
-<form class="km-upload" on:submit|preventDefault={submit}>
+<svelte:head>
+	<link rel="preconnect" href="https://challenges.cloudflare.com" />
+</svelte:head>
+
+<form class="km-upload" method="post" on:submit|preventDefault={submit}>
 	<label>
 		<span>Spreadsheet (.xlsx) or Events CSV</span>
 		<input type="file" accept=".xlsx,.csv" on:change={(e) => (file = e.target.files[0] ?? null)} />
@@ -90,7 +94,9 @@
 		<input type="url" placeholder="https://docs.google.com/spreadsheets/d/..." bind:value={sheetUrl} />
 	</label>
 	<div bind:this={widgetBox}></div>
-	<button type="submit" disabled={busy}>{busy ? 'Checking…' : 'Upload'}</button>
+	<!-- Disabled until the page's scripts are running and the check has passed; before that a click
+	     would be a plain browser form submit that reloads the page and clears the chosen file. -->
+	<button type="submit" disabled={busy || !token}>{busy ? 'Checking…' : token ? 'Upload' : 'Waiting for the check…'}</button>
 </form>
 
 {#if result}
