@@ -9,7 +9,7 @@ This is a public demo, so please use made-up data. Uploads are added to the shar
 
 ## 1. Download the template
 
-<a href="/ranch-demo/cattle_upload_template.xlsx" download data-sveltekit-reload>Download the Excel template</a>
+<p><a href="/ranch-demo/cattle_upload_template.xlsx" download data-sveltekit-reload>Download the Excel template</a></p>
 
 It has an Events tab (one row per thing that happened to an animal), an optional Transactions tab (purchases and sales, with money), and a Herd tab listing the animals already on the ranch. Using Numbers or Google Sheets? Open the template there, fill it in, then export it as .xlsx, or share the Google Sheet with "Anyone with the link" and paste the link below.
 
@@ -17,7 +17,7 @@ It has an Events tab (one row per thing that happened to an animal), an optional
 
 <UploadForm />
 
-Dashboards update within about 15 minutes of a successful upload.
+Dashboards update within a few minutes of a successful upload.
 
 <!-- Queries go at the bottom of the page. This one is also what makes Evidence write a
      data file for this page: a page with no query at all gets no file, and the site then

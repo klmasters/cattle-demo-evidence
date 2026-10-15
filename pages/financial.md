@@ -12,7 +12,7 @@ Money in and out of the herd, from the transactions on record. The data is fake,
 </KMStats>
 
 ### Purchases vs sales by year
-<KMBarChart data={by_year} x=year y=amount series=direction type=grouped yFmt=usd0 seriesColors={{ "Purchases": "#e8843e", "Sales": "#2f7d3c" }} />
+<KMBarChart data={by_year} x=year y=amount series=direction type=grouped sort=false yFmt=usd0 seriesColors={{ "Purchases": "#e8843e", "Sales": "#2f7d3c" }} />
 
 ### Money in vs money out by month
 Months with no transactions show as zero.
