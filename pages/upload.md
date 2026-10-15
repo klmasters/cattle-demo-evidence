@@ -3,7 +3,7 @@ title: Upload Your Own Data
 sidebar_position: 5
 ---
 
-Try the demo with your own cattle events. Download the template, fill in a few rows, upload it here, and the new animals and events show up on the other dashboards. Everything is checked row by row first; if anything is wrong, nothing is saved and you are told which cell to fix.
+The demo herd currently holds <Value data={herd_size} column=events fmt=num0 /> events across <Value data={herd_size} column=animals fmt=num0 /> animals. Try it with your own cattle events. Download the template, fill in a few rows, upload it here, and the new animals and events show up on the other dashboards. Everything is checked row by row first; if anything is wrong, nothing is saved and you are told which cell to fix.
 
 This is a public demo, so please use made-up data. Uploads are added to the shared herd and can be removed at any time.
 
@@ -18,3 +18,10 @@ It has an Events tab (one row per thing that happened to an animal), an optional
 <UploadForm />
 
 Dashboards update within about 15 minutes of a successful upload.
+
+<!-- Queries go at the bottom of the page. This one is also what makes Evidence write a
+     data file for this page: a page with no query at all gets no file, and the site then
+     fails while loading it (the server answers the missing file with an HTML page). -->
+```sql herd_size
+select count(*) as events, count(distinct tag_number) as animals from raw_cattle_events
+```
