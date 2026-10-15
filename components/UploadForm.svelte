@@ -12,6 +12,7 @@
 	let widgetBox;
 	let widgetId = null;
 	let token = '';
+	let widgetNote = ''; // what to tell the visitor if the check cannot start or fails
 
 	let file = null;
 	let transactionsFile = null;
@@ -25,19 +26,38 @@
 	// Load Cloudflare's script once, then draw the check into the box above the Upload button.
 	onMount(() => {
 		const draw = () => {
-			widgetId = window.turnstile.render(widgetBox, {
-				sitekey: TURNSTILE_SITE_KEY,
-				callback: (t) => (token = t),
-				'expired-callback': () => (token = ''),
-				'error-callback': () => (token = ''),
-			});
+			try {
+				widgetId = window.turnstile.render(widgetBox, {
+					sitekey: TURNSTILE_SITE_KEY,
+					callback: (t) => {
+						token = t;
+						widgetNote = '';
+					},
+					'expired-callback': () => (token = ''),
+					'error-callback': (code) => {
+						token = '';
+						widgetNote = `The check could not run (error ${code}). Reload the page; if it keeps failing, try another browser.`;
+					},
+				});
+			} catch (err) {
+				widgetNote = `The check could not start (${err?.message ?? 'unknown error'}).`;
+			}
 		};
-		if (window.turnstile) return draw();
-		const script = document.createElement('script');
-		script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-		script.async = true;
-		script.onload = draw;
-		document.head.appendChild(script);
+		if (window.turnstile) {
+			draw();
+		} else {
+			const script = document.createElement('script');
+			script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+			script.async = true;
+			script.onload = draw;
+			script.onerror = () => (widgetNote = 'The check could not be loaded. A browser extension or network filter may be blocking challenges.cloudflare.com.');
+			document.head.appendChild(script);
+		}
+		// If nothing has happened after a while, say so instead of leaving a silent disabled button.
+		const timer = setTimeout(() => {
+			if (!token && !widgetNote) widgetNote = 'The check is taking a long time. Reload the page, or try another browser.';
+		}, 15000);
+		return () => clearTimeout(timer);
 	});
 
 	async function submit() {
@@ -94,6 +114,7 @@
 		<input type="url" placeholder="https://docs.google.com/spreadsheets/d/..." bind:value={sheetUrl} />
 	</label>
 	<div bind:this={widgetBox}></div>
+	{#if widgetNote}<p class="km-note">{widgetNote}</p>{/if}
 	<!-- Disabled until the page's scripts are running and the check has passed; before that a click
 	     would be a plain browser form submit that reloads the page and clears the chosen file. -->
 	<button type="submit" disabled={busy || !token}>{busy ? 'Checking…' : token ? 'Upload' : 'Waiting for the check…'}</button>
@@ -204,6 +225,11 @@
 		font-family: 'DM Mono', ui-monospace, monospace;
 		font-size: 0.8rem;
 		color: #3a5c3d;
+	}
+	.km-note {
+		margin: 0;
+		font-size: 0.9rem;
+		color: #8a3b12;
 	}
 	.link {
 		background: none;
