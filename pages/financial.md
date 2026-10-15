@@ -43,12 +43,22 @@ from raw_cattle_transactions
 ```
 
 ```sql by_year
-select
-  cast(year(cast(transaction_date as date)) as varchar) as year,
-  case transaction_type when 'purchase' then 'Purchases' else 'Sales' end as direction,
-  sum(total_amount) as amount
-from raw_cattle_transactions
-group by 1, 2
+-- Every year gets a row for both directions (zero when there is nothing). Without that, a year
+-- with only sales is missing from the Purchases series and the chart puts it at the end.
+with totals as (
+  select
+    cast(year(cast(transaction_date as date)) as varchar) as year,
+    case transaction_type when 'purchase' then 'Purchases' else 'Sales' end as direction,
+    sum(total_amount) as amount
+  from raw_cattle_transactions
+  group by 1, 2
+),
+years as (select distinct year from totals),
+directions as (select 'Purchases' as direction union all select 'Sales')
+select y.year, d.direction, coalesce(t.amount, 0) as amount
+from years y
+cross join directions d
+left join totals t on t.year = y.year and t.direction = d.direction
 order by 1, 2
 ```
 
