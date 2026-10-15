@@ -11,11 +11,12 @@ const json = (body, status = 200) =>
  * @param {Request} request
  * @param {{ withClient: (fn: (client) => Promise<any>) => Promise<any>, fetch?: typeof fetch,
  *           verifyHuman?: (token: string, ip: string | null) => Promise<boolean>,
- *           hashIp?: (ip: string) => Promise<string> }} deps
+ *           hashIp?: (ip: string) => Promise<string>,
+ *           onSaved?: () => void }} deps
  */
 export const UPLOADS_PER_HOUR = 5
 
-export async function handleUpload(request, { withClient, fetch: fetchFn = fetch, verifyHuman, hashIp }) {
+export async function handleUpload(request, { withClient, fetch: fetchFn = fetch, verifyHuman, hashIp, onSaved }) {
   if (request.method !== 'POST') return json({ ok: false, message: 'Use POST.' }, 405)
   if (Number(request.headers.get('content-length') ?? 0) > 3 * 1024 * 1024) {
     return json({ ok: false, message: 'The upload is too large.' }, 413)
@@ -70,6 +71,8 @@ export async function handleUpload(request, { withClient, fetch: fetchFn = fetch
     if (saved.duplicate) {
       return json({ ok: false, message: 'This exact data was already uploaded, so nothing new was saved.', ...report }, 409)
     }
+    // Tell the site to rebuild. Whatever happens here must never turn a saved upload into an error.
+    try { onSaved?.() } catch (err) { console.error('rebuild trigger failed', err?.message) }
     return json({ ok: true, message: 'Saved. The dashboards update within about 15 minutes.', batchId: saved.batchId, ...report })
   } catch (err) {
     if (err instanceof UploadError || /^(The file|Could not read the file)/.test(err?.message ?? '')) {

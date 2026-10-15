@@ -190,3 +190,22 @@ test('ip hasher is stable, keyed and never returns the address', async () => {
   assert.notEqual(a, await makeIpHasher('k2')('1.2.3.4'))
   assert.equal(a.includes('1.2.3.4'), false)
 })
+
+test('a saved upload triggers the rebuild once; failures and refusals do not', async () => {
+  let calls = 0
+  const onSaved = () => { calls++ }
+  const ok = await run(post({ file: xlsxFile() }), { ...fakeDb().deps, onSaved })
+  assert.equal(ok.status, 200)
+  assert.equal(calls, 1)
+  const dup = await run(post({ file: xlsxFile() }), { ...fakeDb({ duplicate: true }).deps, onSaved })
+  assert.equal(dup.status, 409)
+  const bad = await run(post({ file: csvFile('nope') }), { ...fakeDb().deps, onSaved })
+  assert.notEqual(bad.status, 200)
+  assert.equal(calls, 1)
+})
+
+test('a crashing rebuild trigger does not break a saved upload', async () => {
+  const { status, body } = await run(post({ file: xlsxFile() }), { ...fakeDb().deps, onSaved: () => { throw new Error('boom') } })
+  assert.equal(status, 200)
+  assert.equal(body.ok, true)
+})

@@ -1,0 +1,40 @@
+name: Rebuild site after batches are voided
+
+# New uploads trigger their own rebuild (the upload function calls the Cloudflare deploy hook).
+# What the function cannot see is a batch voided by hand in the SQL editor, or by the daily purge.
+# Once an hour this looks at how many batches are voided; if that number is one we have not
+# rebuilt for, it asks Cloudflare to rebuild. GitHub may start scheduled runs late.
+on:
+  schedule:
+    - cron: '30 * * * *'
+  workflow_dispatch:      # "Run workflow" button
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Count voided batches
+        id: fp
+        env:
+          DATABASE_URL: ${{ secrets.PURGE_DB_URL }}   # ranch_purger can read upload_batches
+        run: |
+          n=$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "
+            select count(*) from ranch_demo.upload_batches where voided")
+          echo "voided=$n" >> "$GITHUB_OUTPUT"
+
+      # The cache key holds the count. An exact hit means we already rebuilt for this number.
+      - name: Was this count already built?
+        id: seen
+        uses: actions/cache@v4
+        with:
+          path: .voided
+          key: rebuilt-voided-${{ steps.fp.outputs.voided }}
+
+      - name: Ask Cloudflare to rebuild
+        if: steps.seen.outputs.cache-hit != 'true'
+        env:
+          HOOK: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}
+          VOIDED: ${{ steps.fp.outputs.voided }}
+        run: |
+          curl --fail --silent --show-error -X POST "$HOOK" > /dev/null
+          echo "$VOIDED" > .voided   # the cache is saved at the end if this job succeeds
