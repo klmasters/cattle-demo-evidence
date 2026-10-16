@@ -74,7 +74,7 @@ export async function handleUpload(request, { withClient, fetch: fetchFn = fetch
     }
     // Tell the site to rebuild. Whatever happens here must never turn a saved upload into an error.
     try { onSaved?.() } catch (err) { console.error('rebuild trigger failed', err?.message) }
-    return json({ ok: true, message: 'Saved. The dashboards update within about 15 minutes.', batchId: saved.batchId, ...report })
+    return json({ ok: true, message: 'Saved. The dashboards update within about 5 to 6 minutes.', batchId: saved.batchId, ...report })
   } catch (err) {
     if (err instanceof UploadError || /^(The file|Could not read the file)/.test(err?.message ?? '')) {
       return json({ ok: false, message: err.message }, 400)

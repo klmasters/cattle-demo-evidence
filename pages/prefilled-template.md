@@ -23,7 +23,7 @@ Need a blank template instead? <a href="/ranch-demo/cattle_upload_template.xlsx"
 
 <UploadForm />
 
-Dashboards update within a few minutes of a successful upload.
+Dashboards update about 5 to 6 minutes after a successful upload.
 
 <!-- Queries go at the bottom of the page. A page with no query at all gets no data file, and
      the site then fails while loading it. -->
