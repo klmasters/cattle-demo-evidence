@@ -13,6 +13,8 @@ Download a prefilled or blank template to add events to the data. The ranch curr
 
 **Delete the rows that do not apply**, fill in anything left blank (a weight, for instance), then upload the file in step 2. Every row left in the file is saved, so remove the ones you do not want.
 
+All templates include a tab with a list of the current herd. This is for reference only and will not be picked up when your filled-in template is uploaded. Use it to add animals your filters may have missed.
+
 This is a public demo, so please use made-up data. Uploads are added to the shared herd and are removed on a weekly basis.
 
 ## 1. Get the pre-filled template
