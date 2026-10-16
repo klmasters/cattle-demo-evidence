@@ -68,6 +68,33 @@ test('dropdowns, header notes and the Transactions tab survive', () => {
   assert.equal(strFromU8(files['xl/worksheets/sheet2.xml']), strFromU8(before['xl/worksheets/sheet2.xml']))
 })
 
+test('a partly filled Transactions row keeps the template formatting on its empty cells', () => {
+  const files = unzipSync(fillTemplate(template, { events: [], herd, transactions: [{ transaction_date: '2026-10-20', transaction_type: 'purchase' }] }))
+  const row2 = /<row r="2">.*?<\/row>/.exec(strFromU8(files['xl/worksheets/sheet2.xml']))[0]
+  assert.match(row2, /<c r="A2" s="4" t="n"><v>46315<\/v>/) // date, formatted as a date
+  assert.match(row2, /<c r="B2" t="inlineStr"><is><t>purchase<\/t>/)
+  assert.match(row2, /<c r="C2" s="3" t="n" \/>/) // empty tag list, text format kept
+  assert.match(row2, /<c r="E2" s="5" t="n" \/>/) // empty price, money format kept
+})
+
+test('every Events column can be filled', async () => {
+  const full = [{
+    tag_number: 'B1', event_date: '2026-03-04', event_type: 'birth', location: 'Ranch', breed: 'Red Angus', type: 'Calf',
+    weight_lbs: 82.5, notes: 'n', mother_tag_number: '248', previous_tag_number: 'OLD-1', birth_year: 2026,
+    estimated_preg_date: '2025-06-01', estimated_months_pregnant: 5, estimated_due_month: '2026-03-01',
+  }]
+  const bytes = fillTemplate(template, { events: full, herd })
+  const sheets = await parseXlsx(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
+  const v = sheets.events.rows[0].values
+  assert.deepEqual(
+    [v.tag_number, v.type, v.weight_lbs, v.mother_tag_number, v.previous_tag_number, v.birth_year, v.estimated_months_pregnant],
+    ['B1', 'Calf', 82.5, '248', 'OLD-1', 2026, 5],
+  )
+  const result = validate(sheets, { today: '2026-10-21' })
+  assert.equal(result.ok, true, JSON.stringify(result.errors))
+  assert.equal(result.events[0].estimated_due_month, '2026-03-01')
+})
+
 test('too many rows are refused', () => {
   const many = Array.from({ length: MAX_FILL_ROWS + 1 }, (_, i) => ({ ...events[0], tag_number: String(i) }))
   assert.throws(() => fillTemplate(template, { events: many, herd }), /at most 500/)

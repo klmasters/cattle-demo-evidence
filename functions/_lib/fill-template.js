@@ -2,22 +2,54 @@
 //
 // The template (static/cattle_upload_template.xlsx) is a zip of XML files. Rather than
 // rebuild the workbook, which would lose its dropdowns and header notes, this unzips it,
-// writes cells into the Events and Herd sheets, and zips it again.
-//   Events: one pre-filled row per animal (tag, date, event type, location, breed, type, notes)
-//   Herd:   the reference tab, rewritten from the live herd, and the Events tag dropdown
-//           is pointed at the new length of that list
-// Everything else in the file (Transactions tab, validation, header notes) is untouched.
+// writes cells into the Events, Transactions and Herd sheets, and zips it again.
+//   Events:       pre-filled rows (any of the 14 columns; a blank value leaves the cell empty)
+//   Transactions: optional pre-filled rows (any of the 7 columns)
+//   Herd:         the reference tab, rewritten from the live herd, and the Events tag dropdown
+//                 is pointed at the new length of that list
+// Everything else in the file (validation, header notes) is untouched.
 
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate'
 
-export const MAX_FILL_ROWS = 500 // the template's validation covers Events rows 2..501
+export const MAX_FILL_ROWS = 500 // the template's validation covers rows 2..501
 
-// Style numbers in the template's styles.xml: 3 = text, 4 = yyyy-mm-dd date.
-const TEXT_STYLE = 3
-const DATE_STYLE = 4
+// Style numbers in the template's styles.xml.
+const TEXT = 3 // text (so 0012 stays 0012)
+const DATE = 4 // yyyy-mm-dd
+const MONEY = 5 // $#,##0.00
 
-const HERD_COLUMNS = ['tag_number', 'breed', 'type', 'location', 'last_event_type', 'last_event_date', 'last_weight_lbs', 'last_weight_date']
-const COLUMN_LETTERS = 'ABCDEFGH'
+// One entry per template column, in order. kind says how a value is written:
+//   text/date/money carry the template's style; str and number are plain.
+// `styled` marks columns the template formats even when empty; a filled row keeps them
+// (an empty styled cell) so the formatting is not lost.
+const EVENT_COLUMNS = [
+  { name: 'tag_number', kind: 'text', style: TEXT, styled: true },
+  { name: 'event_date', kind: 'date', style: DATE, styled: true },
+  { name: 'event_type', kind: 'str' },
+  { name: 'location', kind: 'str' },
+  { name: 'breed', kind: 'str' },
+  { name: 'type', kind: 'str' },
+  { name: 'weight_lbs', kind: 'number' },
+  { name: 'notes', kind: 'str' },
+  { name: 'mother_tag_number', kind: 'text', style: TEXT, styled: true },
+  { name: 'previous_tag_number', kind: 'text', style: TEXT, styled: true },
+  { name: 'birth_year', kind: 'number' },
+  { name: 'estimated_preg_date', kind: 'date', style: DATE, styled: true },
+  { name: 'estimated_months_pregnant', kind: 'number' },
+  { name: 'estimated_due_month', kind: 'date', style: DATE, styled: true },
+]
+const TRANSACTION_COLUMNS = [
+  { name: 'transaction_date', kind: 'date', style: DATE, styled: true },
+  { name: 'transaction_type', kind: 'str' },
+  { name: 'tag_numbers', kind: 'text', style: TEXT, styled: true },
+  { name: 'head_count', kind: 'number' },
+  { name: 'price_per_head', kind: 'number', style: MONEY, styled: true },
+  { name: 'total_amount', kind: 'number', style: MONEY, styled: true },
+  { name: 'notes', kind: 'str' },
+]
+const HERD_COLUMN_COUNT = 8 // tag_number .. last_weight_date
+
+const letter = (index) => String.fromCharCode(65 + index) // 0 -> A (the sheets here stay under 26 columns)
 
 function escapeXml(value) {
   return String(value)
@@ -45,6 +77,39 @@ function numberCell(ref, value, style) {
   return `<c r="${ref}"${s} t="n"><v>${value}</v></c>`
 }
 
+const isBlank = (value) => value === undefined || value === null || value === ''
+
+// One row of cells. A blank value is left out, or written as an empty styled cell where the template styles it.
+function rowXml(r, values, columns) {
+  const cells = []
+  columns.forEach((col, i) => {
+    const ref = `${letter(i)}${r}`
+    const value = values[col.name]
+    if (isBlank(value)) {
+      if (col.styled) cells.push(`<c r="${ref}" s="${col.style}" t="n" />`)
+    } else if (col.kind === 'date') {
+      cells.push(numberCell(ref, excelSerial(value), col.style))
+    } else if (col.kind === 'number') {
+      cells.push(numberCell(ref, Number(value), col.style))
+    } else {
+      cells.push(textCell(ref, value, col.style)) // text and str
+    }
+  })
+  return `<row r="${r}">${cells.join('')}</row>`
+}
+
+// Replace rows 2.. of a sheet with the given rows; rows after them stay as the template has them.
+function fillRows(sheetXml, rows, columns, sheetName) {
+  let xml = sheetXml
+  rows.forEach((values, i) => {
+    const r = i + 2
+    const pattern = new RegExp(`<row r="${r}">.*?</row>`)
+    if (!pattern.test(xml)) throw new Error(`The template has no row ${r} on the ${sheetName} tab.`)
+    xml = xml.replace(pattern, () => rowXml(r, values, columns))
+  })
+  return xml
+}
+
 // Tags sort numerically when they are all digits, so 99 comes before 101 (same as make_template.py).
 export function byTag(a, b) {
   const x = String(a.tag_number)
@@ -66,11 +131,16 @@ function sheetPath(workbookXml, relsXml, name) {
 }
 
 // templateBytes: Uint8Array of the blank template.
-// events: [{ tag_number, event_date: 'YYYY-MM-DD', event_type, location, breed, type, notes }]
-// herd:   [{ tag_number, breed, type, location, last_event_type, last_event_date, last_weight_lbs, last_weight_date }]
-export function fillTemplate(templateBytes, { events, herd }) {
-  if (events.length > MAX_FILL_ROWS) {
-    throw new Error(`The template holds at most ${MAX_FILL_ROWS} event rows; ${events.length} were requested.`)
+// events:       [{ tag_number, event_date: 'YYYY-MM-DD', event_type, location, breed, type, weight_lbs, notes,
+//                  mother_tag_number, previous_tag_number, birth_year, estimated_preg_date,
+//                  estimated_months_pregnant, estimated_due_month }]  (any may be left out)
+// transactions: [{ transaction_date, transaction_type, tag_numbers, head_count, price_per_head, total_amount, notes }]
+// herd:         [{ tag_number, breed, type, location, last_event_type, last_event_date, last_weight_lbs, last_weight_date }]
+export function fillTemplate(templateBytes, { events, transactions = [], herd }) {
+  for (const [name, rows] of [['event', events], ['transaction', transactions]]) {
+    if (rows.length > MAX_FILL_ROWS) {
+      throw new Error(`The template holds at most ${MAX_FILL_ROWS} ${name} rows; ${rows.length} were requested.`)
+    }
   }
   const files = unzipSync(templateBytes)
   const read = (path) => {
@@ -81,54 +151,37 @@ export function fillTemplate(templateBytes, { events, herd }) {
   const workbookXml = read('xl/workbook.xml')
   const relsXml = read('xl/_rels/workbook.xml.rels')
   const eventsPath = sheetPath(workbookXml, relsXml, 'Events')
+  const transactionsPath = sheetPath(workbookXml, relsXml, 'Transactions')
   const herdPath = sheetPath(workbookXml, relsXml, 'Herd')
 
-  // --- Events: replace the empty styled row r with a filled one -------------------
-  let eventsXml = read(eventsPath)
-  events.forEach((e, i) => {
-    const r = i + 2
-    const cells = [
-      textCell(`A${r}`, e.tag_number, TEXT_STYLE),
-      numberCell(`B${r}`, excelSerial(e.event_date), DATE_STYLE),
-      textCell(`C${r}`, e.event_type),
-      textCell(`D${r}`, e.location),
-      textCell(`E${r}`, e.breed),
-      textCell(`F${r}`, e.type),
-    ]
-    if (e.notes) cells.push(textCell(`H${r}`, e.notes))
-    // Weight (G) stays blank. The template also formats I, J, L and N, so keep those empty
-    // styled cells or the formatting would be lost on filled rows.
-    const kept = ['I', 'J', 'L', 'N'].map((c) => {
-      const style = c === 'I' || c === 'J' ? TEXT_STYLE : DATE_STYLE
-      return `<c r="${c}${r}" s="${style}" t="n" />`
-    })
-    const row = `<row r="${r}">${cells.join('')}${kept.join('')}</row>`
-    const pattern = new RegExp(`<row r="${r}">.*?</row>`)
-    if (!pattern.test(eventsXml)) throw new Error(`The template has no row ${r} on the Events tab.`)
-    eventsXml = eventsXml.replace(pattern, () => row)
-  })
+  // --- Events ------------------------------------------------------------------------
+  let eventsXml = fillRows(read(eventsPath), events, EVENT_COLUMNS, 'Events')
   // The tag dropdown points at the Herd tab; make it cover the new list length.
   const lastHerdRow = Math.max(herd.length + 1, 2)
   eventsXml = eventsXml.replace(/Herd!\$A\$2:\$A\$\d+/, `Herd!$A$2:$A$${lastHerdRow}`)
   files[eventsPath] = strToU8(eventsXml)
 
-  // --- Herd: keep the header row, rewrite the rest ---------------------------------
+  // --- Transactions ------------------------------------------------------------------
+  if (transactions.length) {
+    files[transactionsPath] = strToU8(fillRows(read(transactionsPath), transactions, TRANSACTION_COLUMNS, 'Transactions'))
+  }
+
+  // --- Herd: keep the header row, rewrite the rest -----------------------------------
   let herdXml = read(herdPath)
-  const sorted = [...herd].sort(byTag)
-  const herdRows = sorted.map((h, i) => {
+  const herdRows = [...herd].sort(byTag).map((h, i) => {
     const r = i + 2
-    const cells = [textCell(`A${r}`, h.tag_number, TEXT_STYLE)]
+    const cells = [textCell(`A${r}`, h.tag_number, TEXT)]
     cells.push(textCell(`B${r}`, h.breed ?? ''))
     cells.push(textCell(`C${r}`, h.type ?? ''))
     cells.push(textCell(`D${r}`, h.location ?? ''))
     cells.push(textCell(`E${r}`, h.last_event_type ?? ''))
-    if (h.last_event_date) cells.push(numberCell(`F${r}`, excelSerial(h.last_event_date), DATE_STYLE))
+    if (h.last_event_date) cells.push(numberCell(`F${r}`, excelSerial(h.last_event_date), DATE))
     if (h.last_weight_lbs != null) cells.push(numberCell(`G${r}`, h.last_weight_lbs))
-    if (h.last_weight_date) cells.push(numberCell(`H${r}`, excelSerial(h.last_weight_date), DATE_STYLE))
+    if (h.last_weight_date) cells.push(numberCell(`H${r}`, excelSerial(h.last_weight_date), DATE))
     return `<row r="${r}">${cells.join('')}</row>`
   })
   herdXml = herdXml.replace(/(<row r="1">.*?<\/row>).*<\/sheetData>/s, (_, header) => `${header}${herdRows.join('')}</sheetData>`)
-  herdXml = herdXml.replace(/<dimension ref="[^"]*"\s*\/>/, `<dimension ref="A1:${COLUMN_LETTERS[HERD_COLUMNS.length - 1]}${lastHerdRow}" />`)
+  herdXml = herdXml.replace(/<dimension ref="[^"]*"\s*\/>/, `<dimension ref="A1:${letter(HERD_COLUMN_COUNT - 1)}${lastHerdRow}" />`)
   files[herdPath] = strToU8(herdXml)
 
   return zipSync(files)
