@@ -8,6 +8,9 @@
 	import { onMount } from 'svelte';
 	import { mountTurnstile } from './turnstile.js';
 
+	// For a page that is not linked from the site: ask search engines to leave it out.
+	export let noindex = false;
+
 	// Birth and purchase are left out: those are for animals that are not on the ranch yet.
 	const EVENT_TYPES = [
 		{ value: 'vaccination', label: 'Vaccination', hint: 'Put the vaccine name in the note and it is copied onto every row.' },
@@ -94,6 +97,10 @@
 
 	$: hint = EVENT_TYPES.find((t) => t.value === eventType)?.hint ?? '';
 </script>
+
+<svelte:head>
+	{#if noindex}<meta name="robots" content="noindex" />{/if}
+</svelte:head>
 
 <form class="km-prefill" method="post" on:submit|preventDefault={submit}>
 	<div class="row">
