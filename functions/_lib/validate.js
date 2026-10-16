@@ -155,6 +155,19 @@ export function validate(sheets, options = {}) {
   // --- transactions ---
   // Matching transactions to events only makes sense when every event row was readable.
   eventsReadable = errors.length === 0
+  // A transaction row may leave tag_numbers blank: it then covers the purchase (or sold) events
+  // dated the same day, skipping tags another row lists itself. So that rule is predictable,
+  // note the tags listed by hand first, and let only one blank row claim a given type and date.
+  const listedTags = new Set()
+  const claimedDays = new Set()
+  for (const { values } of txnRows) {
+    if (values.tag_numbers == null) continue
+    const wanted = String(values.transaction_type).toLowerCase() === 'purchase' ? 'purchase' : 'sold'
+    for (const part of String(values.tag_numbers).split(/[,;|]/)) {
+      const tag = parseTag(part.trim())
+      if (tag !== null) listedTags.add(`${wanted}|${tag}`)
+    }
+  }
   for (const { row, values } of txnRows) {
     const txn = checkTransactionRow(row, values)
     if (txn) transactions.push(txn)
@@ -330,7 +343,13 @@ export function validate(sheets, options = {}) {
     const before = errors.length
     const out = { source_row: row, notes: null }
 
-    for (const c of TRANSACTION_REQUIRED) required(S, row, c, v)
+    // With no tags listed the row is a shortcut (see above): head_count and total_amount may be
+    // blank too, and are worked out. A row that lists its tags follows the original rules.
+    const shortcut = v.tag_numbers == null
+    for (const c of TRANSACTION_REQUIRED) {
+      if (shortcut && (c === 'tag_numbers' || c === 'head_count' || c === 'total_amount')) continue
+      required(S, row, c, v)
+    }
 
     if (v.transaction_date != null) out.transaction_date = dateField(S, row, 'transaction_date', v.transaction_date, { limits: true })
     if (v.transaction_type != null) out.transaction_type = listField(S, row, 'transaction_type', v.transaction_type, TRANSACTION_TYPES)
@@ -360,6 +379,13 @@ export function validate(sheets, options = {}) {
         else out[c] = n
       }
     }
+    if (shortcut) {
+      if (!eventsReadable) {
+        out.tag_numbers = [] // the upload fails on the events anyway; keeps later checks from tripping
+      } else if (errors.length === before) {
+        linkEvents(S, row, out)
+      }
+    }
     if (out.price_per_head != null && out.total_amount != null && out.head_count != null &&
         Math.abs(out.price_per_head * out.head_count - out.total_amount) > 1) {
       error(S, row, 'total_amount', `total_amount should be price_per_head x head_count (${out.price_per_head * out.head_count}), not ${out.total_amount}.`)
@@ -382,6 +408,37 @@ export function validate(sheets, options = {}) {
       }
     }
     return errors.length === before ? out : null
+  }
+
+  // The shortcut: fill tag_numbers, head_count and total_amount from the purchase (or sold) events
+  // dated the same day as this transaction. Adds to `out`; reports a problem as an error.
+  function linkEvents(S, row, out) {
+    const wanted = out.transaction_type === 'purchase' ? 'purchase' : 'sold'
+    const day = `${wanted}|${out.transaction_date}`
+    if (claimedDays.has(day)) {
+      error(S, row, 'tag_numbers', `Another row with no tags is already on ${out.transaction_date}, so it is unclear which animals belong to which. List the tags on each row.`)
+      return
+    }
+    claimedDays.add(day)
+    const matches = events.filter((e) => e.event_type === wanted && e.event_date === out.transaction_date && !listedTags.has(`${wanted}|${e.tag_number}`))
+    if (matches.length === 0) {
+      error(S, row, 'tag_numbers', `No tags listed, and there are no ${wanted} events dated ${out.transaction_date} on the Events tab to link to.`)
+      return
+    }
+    const tags = matches.map((e) => e.tag_number)
+    const repeated = tags.find((t, i) => tags.indexOf(t) !== i)
+    if (repeated) {
+      error(S, row, 'tag_numbers', `Tag ${repeated} has two ${wanted} events on ${out.transaction_date}, so list the tags on this row yourself.`)
+      return
+    }
+    if (out.head_count != null && out.head_count !== tags.length) {
+      error(S, row, 'head_count', `head_count is ${out.head_count} but ${tags.length} ${wanted} event(s) are dated ${out.transaction_date}.`)
+      return
+    }
+    out.tag_numbers = tags
+    out.head_count = tags.length
+    if (out.total_amount == null) out.total_amount = Math.round(out.price_per_head * tags.length * 100) / 100
+    warn(S, row, 'tag_numbers', `No tags were listed, so this row covers the ${tags.length} ${wanted} event(s) dated ${out.transaction_date}: ${tags.join(', ')}.`)
   }
 
   function checkEventsHaveTransactions() {

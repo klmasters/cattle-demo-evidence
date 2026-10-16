@@ -118,6 +118,51 @@ test('transactions: head count, totals, duplicates and types are checked', () =>
   assert.deepEqual(messages(r.errors), ['Transactions 2 head_count', 'Transactions 3 total_amount', 'Transactions 4 transaction_type', 'Transactions 5 tag_numbers'])
 })
 
+// A transaction row with no tags covers the purchase (or sold) events dated the same day.
+const buy = (tag, date = '2026-05-02') => [tag, date, 'purchase', 'Eureka', 'Red Angus', 'Cow', null, null, null, null]
+const sell = (tag, date = '2026-05-02') => [tag, date, 'sold', 'Ranch', 'Black Angus', 'Calf', null, null, null, null]
+
+test('transactions: blank tags link to the purchase events on that date, and counts are worked out', () => {
+  const r = run(events(buy('902'), buy('903'), buy('904', '2026-05-09')), txns(['2026-05-02', 'purchase', null, null, 1800, null]))
+  assert.equal(r.ok, true, JSON.stringify(r.errors))
+  assert.deepEqual(r.transactions[0].tag_numbers, ['902', '903'])
+  assert.equal(r.transactions[0].head_count, 2)
+  assert.equal(r.transactions[0].total_amount, 3600)
+  assert.match(r.warnings.find((w) => w.sheet === 'Transactions').message, /902, 903/)
+  // Only the 05-09 purchase (row 4) is left without a transaction; the two linked ones are covered.
+  assert.deepEqual(r.warnings.filter((w) => w.sheet === 'Events').map((w) => w.row), [4])
+})
+
+test('transactions: blank tags work for sales, and a given total or head count is checked', () => {
+  const sale = run(events(sell('901'), sell('905')), txns(['2026-05-02', 'sale', null, 2, 900, 1800]))
+  assert.equal(sale.ok, true, JSON.stringify(sale.errors))
+  assert.deepEqual(sale.transactions[0].tag_numbers, ['901', '905'])
+  const wrongCount = run(events(buy('902'), buy('903')), txns(['2026-05-02', 'purchase', null, 3, 1800, null]))
+  assert.deepEqual(messages(wrongCount.errors), ['Transactions 2 head_count'])
+  const wrongTotal = run(events(buy('902'), buy('903')), txns(['2026-05-02', 'purchase', null, null, 1800, 5000]))
+  assert.deepEqual(messages(wrongTotal.errors), ['Transactions 2 total_amount'])
+})
+
+test('transactions: blank tags need price_per_head and a matching event', () => {
+  const noPrice = run(events(buy('902')), txns(['2026-05-02', 'purchase', null, null, null, null]))
+  assert.deepEqual(messages(noPrice.errors), ['Transactions 2 price_per_head'])
+  const noEvents = run(events(buy('902')), txns(['2026-05-09', 'purchase', null, null, 1800, null]))
+  assert.deepEqual(messages(noEvents.errors), ['Transactions 2 tag_numbers'])
+})
+
+test('transactions: two blank-tag rows on one date are ambiguous; a row that lists tags keeps its own', () => {
+  const twice = run(events(buy('902'), buy('903')), txns(['2026-05-02', 'purchase', null, null, 1800, null], ['2026-05-02', 'purchase', null, null, 2000, null]))
+  assert.deepEqual(messages(twice.errors), ['Transactions 3 tag_numbers'])
+  const mixed = run(events(buy('902'), buy('903'), buy('904')), txns(['2026-05-02', 'purchase', '902', 1, 2500, 2500], ['2026-05-02', 'purchase', null, null, 1800, null]))
+  assert.equal(mixed.ok, true, JSON.stringify(mixed.errors))
+  assert.deepEqual(mixed.transactions[1].tag_numbers, ['903', '904'])
+})
+
+test('transactions: a row that lists tags still needs head_count and total_amount', () => {
+  const r = run(events(buy('902')), txns(['2026-05-02', 'purchase', '902', null, 1800, null]))
+  assert.deepEqual(messages(r.errors), ['Transactions 2 head_count', 'Transactions 2 total_amount'])
+})
+
 test('a purchase or sold event with no transaction is a warning', () => {
   const r = run(events(purchase))
   assert.equal(r.ok, true)
