@@ -3,10 +3,13 @@
 # proxy. These redirects keep the prefix. They must come before the rewrite below, and each page
 # is listed by hand (a wildcard would also catch files such as the template download).
 /ranch-demo/upload             /ranch-demo/upload/             301
-/ranch-demo/prefilled-template /ranch-demo/prefilled-template/ 301
 /ranch-demo/financial          /ranch-demo/financial/          301
 /ranch-demo/pregnancy-calving  /ranch-demo/pregnancy-calving/  301
 /ranch-demo/animal-lookup      /ranch-demo/animal-lookup/      301
+
+# The pre-filled template page became the upload page; keep the old address working.
+/ranch-demo/prefilled-template   /ranch-demo/upload/  301
+/ranch-demo/prefilled-template/  /ranch-demo/upload/  301
 
 # Evidence writes every URL with the /ranch-demo/ prefix (basePath in evidence.config.yaml),
 # but the built files sit at the root of the build folder. Serve /ranch-demo/x from /x.

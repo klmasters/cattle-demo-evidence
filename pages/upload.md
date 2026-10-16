@@ -1,17 +1,27 @@
 ---
-title: Upload Your Own Data
+title: Add Events to the Data
 sidebar_position: 5
 ---
 
-The demo herd currently holds <Value data={herd_size} column=events fmt=num0 /> events across <Value data={herd_size} column=animals fmt=num0 /> animals. Try it with your own cattle events. Download the template, fill in a few rows, upload it here, and the new animals and events show up on the other dashboards. Everything is checked row by row first; if anything is wrong, nothing is saved and you are told which cell to fix.
+Download a prefilled or blank template to add events to the data. The ranch currently has <Value data={herd_size} column=animals fmt=num0 /> animals.
 
-This is a public demo, so please use made-up data. Uploads are added to the shared herd and can be removed at any time.
+## Options to download
 
-## 1. Download the template
+- **Something happened to animals already on the ranch** (a vaccination, a weighing, a pregnancy check, a sale): you get a row for every animal, with its tag, breed, type and location filled in.
+- **Calves were born:** you get a row for each pregnant cow, with her tag in the mother column, the calf's breed and location copied from her, and the birth year filled in. You add each calf's tag.
+- **You bought animals:** say how many, and you get that many empty rows plus a Transactions row ready for the price. List no tags on the Transactions row and it covers every purchase dated that day.
 
-<a href="/ranch-demo/cattle_upload_template.xlsx" download data-sveltekit-reload style="display:inline-block;margin:0.25rem 0 0.9rem;color:#3d6642;font-weight:600;text-decoration:underline">Download the Excel template</a>
+**Delete the rows that do not apply**, fill in anything left blank (a weight, for instance), then upload the file in step 2. Every row left in the file is saved, so remove the ones you do not want.
 
-It has an Events tab (one row per thing that happened to an animal), an optional Transactions tab (purchases and sales, with money), and a Herd tab listing the animals already on the ranch. Using Numbers or Google Sheets? Open the template there, fill it in, then export it as .xlsx, or share the Google Sheet with "Anyone with the link" and paste the link below.
+All templates include a tab with a list of the current herd. This is for reference only and will not be picked up when your filled-in template is uploaded. Use it to add animals your filters may have missed.
+
+This is a public demo, so please use made-up data. Uploads are added to the shared herd and are removed on a weekly basis.
+
+## 1. Get the pre-filled template
+
+<TemplateForm />
+
+Need a blank template instead? <a href="/ranch-demo/cattle_upload_template.xlsx" download data-sveltekit-reload style="color:#3d6642;font-weight:600;text-decoration:underline">Download it here</a>.
 
 ## 2. Upload it
 
@@ -19,9 +29,8 @@ It has an Events tab (one row per thing that happened to an animal), an optional
 
 Dashboards update about 2 to 3 minutes after a successful upload.
 
-<!-- Queries go at the bottom of the page. This one is also what makes Evidence write a
-     data file for this page: a page with no query at all gets no file, and the site then
-     fails while loading it (the server answers the missing file with an HTML page). -->
+<!-- Queries go at the bottom of the page. A page with no query at all gets no data file, and
+     the site then fails while loading it. -->
 ```sql herd_size
-select count(*) as events, count(distinct tag_number) as animals from raw_cattle_events
+select count(*) as animals from raw_current_cattle
 ```

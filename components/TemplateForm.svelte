@@ -11,9 +11,6 @@
 	import { onMount } from 'svelte';
 	import { mountTurnstile } from './turnstile.js';
 
-	// For a page that is not linked from the site: ask search engines to leave it out.
-	export let noindex = false;
-
 	// kind decides which fields show: 'existing' animals, 'birth' or 'purchase'.
 	const EVENT_TYPES = [
 		{ value: 'vaccination', label: 'Vaccination', kind: 'existing', hint: 'Put the vaccine name in the note and it is copied onto every row.' },
@@ -125,10 +122,6 @@
 		}
 	}
 </script>
-
-<svelte:head>
-	{#if noindex}<meta name="robots" content="noindex" />{/if}
-</svelte:head>
 
 <form class="km-prefill" method="post" on:submit|preventDefault={submit}>
 	<div class="row">
