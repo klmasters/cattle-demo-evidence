@@ -10,7 +10,7 @@
     "sources:strict": "evidence sources --strict",
     "preview": "evidence preview",
     "build:pages": "npm run sources && npm run build && node scripts/externalize-wasm.mjs",
-    "test:upload": "node --test tests/upload.test.js tests/endpoint.test.js tests/fill-template.test.js"
+    "test:upload": "node --test tests/upload.test.js tests/endpoint.test.js tests/fill-template.test.js tests/template-endpoint.test.js"
   },
   "engines": {
     "npm": ">=7.0.0",

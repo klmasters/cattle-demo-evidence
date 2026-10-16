@@ -46,7 +46,7 @@ function numberCell(ref, value, style) {
 }
 
 // Tags sort numerically when they are all digits, so 99 comes before 101 (same as make_template.py).
-function byTag(a, b) {
+export function byTag(a, b) {
   const x = String(a.tag_number)
   const y = String(b.tag_number)
   const xd = /^\d+$/.test(x)

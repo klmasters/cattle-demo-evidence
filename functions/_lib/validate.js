@@ -15,7 +15,7 @@ export const TRANSACTION_TYPES = ['purchase', 'sale']
 
 export const MAX_ROWS = 500
 const MAX_MESSAGES = 50
-const MIN_DATE = '2000-01-01'
+export const MIN_DATE = '2000-01-01'
 
 export const EVENT_COLUMNS = [
   'tag_number', 'event_date', 'event_type', 'location', 'breed', 'type', 'weight_lbs', 'notes',
