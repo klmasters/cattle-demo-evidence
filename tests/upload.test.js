@@ -128,7 +128,10 @@ test('transactions: blank tags link to the purchase events on that date, and cou
   assert.deepEqual(r.transactions[0].tag_numbers, ['902', '903'])
   assert.equal(r.transactions[0].head_count, 2)
   assert.equal(r.transactions[0].total_amount, 3600)
-  assert.match(r.warnings.find((w) => w.sheet === 'Transactions').message, /902, 903/)
+  // Linking the tags is reported as a note, not a warning: nothing is wrong.
+  assert.equal(r.infos.length, 1)
+  assert.match(r.infos[0].message, /filled in.*902, 903/)
+  assert.equal(r.warnings.some((w) => w.sheet === 'Transactions'), false)
   // Only the 05-09 purchase (row 4) is left without a transaction; the two linked ones are covered.
   assert.deepEqual(r.warnings.filter((w) => w.sheet === 'Events').map((w) => w.row), [4])
 })

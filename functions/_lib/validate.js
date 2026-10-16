@@ -4,8 +4,9 @@
 // Input: sheets built by parse.js. A "sheet" is { headers: [...], rows: [{ row, values }] }
 // where `row` is the spreadsheet row number and `values` maps column name -> cell value.
 //
-// Output: { ok, errors, warnings, events, transactions, counts }. Any error means the
-// whole upload is rejected (all or nothing); warnings let it through.
+// Output: { ok, errors, warnings, infos, events, transactions, counts }. Any error means the
+// whole upload is rejected (all or nothing); warnings let it through; infos are not problems,
+// they only report what the server filled in.
 
 export const EVENT_TYPES = ['birth', 'purchase', 'weight', 'vaccination', 'pregnant', 'sold', 'deceased']
 export const ANIMAL_TYPES = ['Cow', 'Bull', 'Calf']
@@ -119,8 +120,10 @@ export function validate(sheets, options = {}) {
 
   const errors = []
   const warnings = []
+  const infos = [] // not problems: things the server did for the visitor (such as filling in tags)
   const error = (sheet, row, column, message) => errors.push({ sheet, row, column, message })
   const warn = (sheet, row, column, message) => warnings.push({ sheet, row, column, message })
+  const info = (sheet, row, column, message) => infos.push({ sheet, row, column, message })
 
   const events = []
   const transactions = []
@@ -185,6 +188,8 @@ export function validate(sheets, options = {}) {
       errorCount: errors.length,
       warnings: warnings.slice(0, MAX_MESSAGES),
       warningCount: warnings.length,
+      infos: infos.slice(0, MAX_MESSAGES),
+      infoCount: infos.length,
       events: errors.length ? [] : events,
       transactions: errors.length ? [] : transactions,
       counts: { events: events.length, transactions: transactions.length },
@@ -438,7 +443,7 @@ export function validate(sheets, options = {}) {
     out.tag_numbers = tags
     out.head_count = tags.length
     if (out.total_amount == null) out.total_amount = Math.round(out.price_per_head * tags.length * 100) / 100
-    warn(S, row, 'tag_numbers', `No tags were listed, so this row covers the ${tags.length} ${wanted} event(s) dated ${out.transaction_date}: ${tags.join(', ')}.`)
+    info(S, row, 'tag_numbers', `No tags were listed, so they were filled in: this row covers the ${tags.length} ${wanted} event(s) dated ${out.transaction_date} (${tags.join(', ')}).`)
   }
 
   function checkEventsHaveTransactions() {

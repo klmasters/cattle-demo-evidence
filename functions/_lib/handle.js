@@ -59,6 +59,7 @@ export async function handleUpload(request, { withClient, fetch: fetchFn = fetch
     const report = {
       errors: result.errors, errorCount: result.errorCount,
       warnings: result.warnings, warningCount: result.warningCount,
+      infos: result.infos, infoCount: result.infoCount,
       counts: result.counts,
     }
     if (!result.ok) {

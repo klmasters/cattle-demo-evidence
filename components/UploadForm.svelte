@@ -70,6 +70,7 @@
 
 	$: errors = result?.errors ?? [];
 	$: warnings = result?.warnings ?? [];
+	$: infos = result?.infos ?? [];
 	$: visibleErrors = showAllErrors ? errors : errors.slice(0, SHOWN);
 	const where = (i) => [i.sheet, i.row ? `row ${i.row}` : null, i.column].filter(Boolean).join(', ');
 </script>
@@ -122,6 +123,14 @@
 			<p><strong>{result.warningCount ?? warnings.length} warning{(result.warningCount ?? warnings.length) === 1 ? '' : 's'} (not blocking):</strong></p>
 			<ul>
 				{#each warnings.slice(0, SHOWN) as item}
+					<li><span class="where">{where(item)}</span> {item.message}</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if infos.length}
+			<p><strong>{infos.length === 1 ? 'Note' : 'Notes'}:</strong></p>
+			<ul>
+				{#each infos.slice(0, SHOWN) as item}
 					<li><span class="where">{where(item)}</span> {item.message}</li>
 				{/each}
 			</ul>

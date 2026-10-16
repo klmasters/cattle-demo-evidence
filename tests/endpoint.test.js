@@ -88,6 +88,20 @@ test('CSV events plus CSV transactions', async () => {
   assert.equal(body.counts.transactions, 1)
 })
 
+test('a transaction with blank tags is saved with its tags filled in, and the response says so as a note', async () => {
+  const db = fakeDb()
+  const events = CSV_HEADER + '902,2026-05-02,purchase,Eureka,Red Angus,Cow,\n903,2026-05-02,purchase,Eureka,Red Angus,Cow,\n'
+  const txns = 'transaction_date,transaction_type,tag_numbers,head_count,price_per_head,total_amount\n2026-05-02,purchase,,,1800,\n'
+  const { status, body } = await run(post({ file: csvFile(events), transactions_file: csvFile(txns, 't.csv') }), db.deps)
+  assert.equal(status, 200, JSON.stringify(body))
+  assert.equal(body.warningCount, 0)
+  assert.equal(body.infoCount, 1)
+  assert.match(body.infos[0].message, /902, 903/)
+  const saved = db.queries.find((q) => q.sql.startsWith('insert into ranch_demo.cattle_transactions'))
+  assert.ok(saved.params.some((p) => Array.isArray(p) && p.join() === '902,903'), 'the linked tags are what gets stored')
+  assert.ok(saved.params.includes(3600), 'the total is worked out')
+})
+
 test('nothing chosen, and a non-spreadsheet file, give plain messages', async () => {
   assert.equal((await run(post({}), fakeDb().deps)).status, 400)
   const png = new File([new Uint8Array([137, 80, 78, 71, 0, 1, 2])], 'x.png')
