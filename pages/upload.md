@@ -7,11 +7,17 @@ The demo herd currently holds <Value data={herd_size} column=events fmt=num0 /> 
 
 This is a public demo, so please use made-up data. Uploads are added to the shared herd and can be removed at any time.
 
-## 1. Download the template
+## 1. Get the template
+
+**Starting from scratch?** Download the blank template.
 
 <a href="/ranch-demo/cattle_upload_template.xlsx" download data-sveltekit-reload style="display:inline-block;margin:0.25rem 0 0.9rem;color:#3d6642;font-weight:600;text-decoration:underline">Download the Excel template</a>
 
 It has an Events tab (one row per thing that happened to an animal), an optional Transactions tab (purchases and sales, with money), and a Herd tab listing the animals already on the ranch. Using Numbers or Google Sheets? Open the template there, fill it in, then export it as .xlsx, or share the Google Sheet with "Anyone with the link" and paste the link below.
+
+**Worked the herd today?** Say what you did and when, and you get the template back with a row for every animal on the ranch, already filled in with its tag, breed, type and location. Delete the rows for animals you did not work, fill in anything left blank (a weight, for instance), and upload it below.
+
+<TemplateForm />
 
 ## 2. Upload it
 
