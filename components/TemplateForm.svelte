@@ -31,9 +31,9 @@
 	let eventType = 'vaccination';
 	let eventDate = ''; // set in the browser: the site is built ahead of time, so "today" must not be baked in
 	let note = '';
-	let location = '';
-	let type = '';
-	let breed = '';
+	let locations = []; // ticked boxes in each group; none ticked means "any"
+	let types = [];
+	let breeds = [];
 	let busy = false;
 	let result = null; // { ok, message }
 
@@ -62,9 +62,9 @@
 		form.append('event_type', eventType);
 		form.append('event_date', eventDate);
 		form.append('note', note);
-		form.append('location', location);
-		form.append('type', type);
-		form.append('breed', breed);
+		for (const v of locations) form.append('location', v);
+		for (const v of types) form.append('type', v);
+		for (const v of breeds) form.append('breed', v);
 		form.append('cf-turnstile-response', token);
 		busy = true;
 		try {
@@ -123,29 +123,26 @@
 		<input type="text" bind:value={note} maxlength="500" placeholder="e.g. 7-way booster" />
 	</label>
 	<fieldset>
-		<legend>Only include <em>(optional, blank means every animal)</em></legend>
+		<legend>Only include <em>(tick any; none ticked means every animal)</em></legend>
 		<div class="row three">
-			<label>
+			<div class="group">
 				<span>Location</span>
-				<select bind:value={location}>
-					<option value="">Any</option>
-					{#each LOCATIONS as v}<option value={v}>{v}</option>{/each}
-				</select>
-			</label>
-			<label>
+				{#each LOCATIONS as v}
+					<label class="check"><input type="checkbox" value={v} bind:group={locations} /> {v}</label>
+				{/each}
+			</div>
+			<div class="group">
 				<span>Type</span>
-				<select bind:value={type}>
-					<option value="">Any</option>
-					{#each TYPES as v}<option value={v}>{v}</option>{/each}
-				</select>
-			</label>
-			<label>
+				{#each TYPES as v}
+					<label class="check"><input type="checkbox" value={v} bind:group={types} /> {v}</label>
+				{/each}
+			</div>
+			<div class="group">
 				<span>Breed</span>
-				<select bind:value={breed}>
-					<option value="">Any</option>
-					{#each BREEDS as v}<option value={v}>{v}</option>{/each}
-				</select>
-			</label>
+				{#each BREEDS as v}
+					<label class="check"><input type="checkbox" value={v} bind:group={breeds} /> {v}</label>
+				{/each}
+			</div>
 		</div>
 	</fieldset>
 	<div bind:this={widgetBox}></div>
@@ -189,6 +186,7 @@
 		grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
 	}
 	label span,
+	.group > span,
 	legend {
 		display: block;
 		margin-bottom: 0.3rem;
@@ -202,6 +200,17 @@
 	legend em {
 		text-transform: none;
 		letter-spacing: 0;
+	}
+	.group {
+		display: grid;
+		gap: 0.35rem;
+		align-content: start;
+	}
+	label.check {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		cursor: pointer;
 	}
 	fieldset {
 		margin: 0;

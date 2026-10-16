@@ -23,7 +23,7 @@ function fakeDb(rows = HERD) {
 
 function post(fields, method = 'POST') {
   const form = new FormData()
-  for (const [k, v] of Object.entries(fields)) form.append(k, v)
+  for (const [k, v] of Object.entries(fields)) for (const item of [].concat(v)) form.append(k, item) // an array sends the field once per item
   return new Request('https://example.test/ranch-demo/api/template', method === 'POST' ? { method, body: form } : { method })
 }
 const GOOD = { event_type: 'vaccination', event_date: '2026-10-20', note: '7-way' }
@@ -52,6 +52,22 @@ test('filters narrow the Events rows but not the Herd tab', async () => {
   assert.equal(res.headers.get('x-animal-count'), '1')
   const sheets = await asSheets(res)
   assert.deepEqual(sheets.events.rows.filter((r) => r.values.tag_number).map((r) => r.values.tag_number), ['248'])
+})
+
+test('a filter can name several values, and a blank value means any', async () => {
+  const two = await run(post({ ...GOOD, location: ['Ranch', 'eureka'] }))
+  assert.equal(two.headers.get('x-animal-count'), '3')
+  const typed = await run(post({ ...GOOD, location: ['Ranch', 'Eureka'], type: ['Bull', 'Calf'] }))
+  assert.equal(typed.headers.get('x-animal-count'), '1') // only the bull
+  const blank = await run(post({ ...GOOD, location: [''], breed: '' }))
+  assert.equal(blank.headers.get('x-animal-count'), '3')
+  const some = await run(post({ ...GOOD, breed: ['Red Angus', 'Sim Angus'] }))
+  assert.equal(some.headers.get('x-animal-count'), '1')
+})
+
+test('one bad value among several is refused', async () => {
+  const res = await run(post({ ...GOOD, location: ['Ranch', 'Mars'] }))
+  assert.equal(res.status, 400)
 })
 
 test('only a read of current_cattle is run', async () => {

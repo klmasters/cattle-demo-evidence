@@ -6,11 +6,10 @@
 <script>
 	import { base } from '$app/paths';
 	import { onMount } from 'svelte';
+	import { mountTurnstile } from './turnstile.js';
 
-	// Public half of the Turnstile widget (the secret half lives in Cloudflare).
-	const TURNSTILE_SITE_KEY = '0x4AAAAAAFWwILY3pKIpeGIf';
 	let widgetBox;
-	let widgetId = null;
+	let check = null; // lets us ask for a fresh token after each try
 	let token = '';
 	let widgetNote = ''; // what to tell the visitor if the check cannot start or fails
 
@@ -23,36 +22,15 @@
 
 	const SHOWN = 25;
 
-	// Load Cloudflare's script once, then draw the check into the box above the Upload button.
+	// Draw the check into the box above the Upload button.
 	onMount(() => {
-		const draw = () => {
-			try {
-				widgetId = window.turnstile.render(widgetBox, {
-					sitekey: TURNSTILE_SITE_KEY,
-					callback: (t) => {
-						token = t;
-						widgetNote = '';
-					},
-					'expired-callback': () => (token = ''),
-					'error-callback': (code) => {
-						token = '';
-						widgetNote = `The check could not run (error ${code}). Reload the page; if it keeps failing, try another browser.`;
-					},
-				});
-			} catch (err) {
-				widgetNote = `The check could not start (${err?.message ?? 'unknown error'}).`;
-			}
-		};
-		if (window.turnstile) {
-			draw();
-		} else {
-			const script = document.createElement('script');
-			script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-			script.async = true;
-			script.onload = draw;
-			script.onerror = () => (widgetNote = 'The check could not be loaded. A browser extension or network filter may be blocking challenges.cloudflare.com.');
-			document.head.appendChild(script);
-		}
+		check = mountTurnstile(widgetBox, {
+			onToken: (t) => {
+				token = t;
+				if (t) widgetNote = '';
+			},
+			onNote: (message) => (widgetNote = message),
+		});
 		// If nothing has happened after a while, say so instead of leaving a silent disabled button.
 		const timer = setTimeout(() => {
 			if (!token && !widgetNote) widgetNote = 'The check is taking a long time. Reload the page, or try another browser.';
@@ -86,7 +64,7 @@
 			busy = false;
 			// A token works once, so get a fresh one for the next try.
 			token = '';
-			if (widgetId !== null && window.turnstile) window.turnstile.reset(widgetId);
+			check?.reset();
 		}
 	}
 

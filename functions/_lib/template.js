@@ -30,15 +30,23 @@ function validDate(value, today) {
   return value >= MIN_DATE && value <= tomorrow.toISOString().slice(0, 10)
 }
 
-// Pick the canonical spelling of an optional filter; '' means no filter, null means not allowed.
-function filterValue(raw, list) {
-  if (raw === '') return ''
-  return list.find((item) => item.toLowerCase() === raw.toLowerCase()) ?? null
+// A filter can be sent several times (location=Ranch&location=Eureka). Returns the chosen values
+// in their canonical spelling; an empty list means "any". Returns null if a value is not allowed.
+function filterValues(form, name, list) {
+  const chosen = []
+  for (const raw of form.getAll(name)) {
+    const value = typeof raw === 'string' ? raw.trim() : ''
+    if (value === '') continue
+    const match = list.find((item) => item.toLowerCase() === value.toLowerCase())
+    if (!match) return null
+    if (!chosen.includes(match)) chosen.push(match)
+  }
+  return chosen
 }
 
 /**
- * @param {Request} request  POST form: event_type, event_date, location, type, breed, note,
- *                           cf-turnstile-response
+ * @param {Request} request  POST form: event_type, event_date, note, cf-turnstile-response, and
+ *                           location, type and breed (each optional, and each may be sent more than once)
  * @param {{ withClient: (fn: (client) => Promise<any>) => Promise<any>,
  *           loadTemplate: () => Promise<Uint8Array>,
  *           verifyHuman?: (token: string, ip: string | null) => Promise<boolean>,
@@ -66,10 +74,10 @@ export async function handleTemplate(request, { withClient, loadTemplate, verify
   if (!validDate(eventDate, today)) {
     return json({ ok: false, message: `Enter the date as year-month-day (for example ${today}), between ${MIN_DATE} and tomorrow.` }, 400)
   }
-  const location = filterValue(text(form, 'location'), LOCATIONS)
-  const type = filterValue(text(form, 'type'), ANIMAL_TYPES)
-  const breed = filterValue(text(form, 'breed'), BREEDS)
-  if (location === null || type === null || breed === null) return json({ ok: false, message: 'That filter value is not one of the allowed choices.' }, 400)
+  const locations = filterValues(form, 'location', LOCATIONS)
+  const types = filterValues(form, 'type', ANIMAL_TYPES)
+  const breeds = filterValues(form, 'breed', BREEDS)
+  if (locations === null || types === null || breeds === null) return json({ ok: false, message: 'That filter value is not one of the allowed choices.' }, 400)
   const note = text(form, 'note')
   if (note.length > 500) return json({ ok: false, message: 'The note can be at most 500 characters.' }, 400)
 
@@ -89,7 +97,9 @@ export async function handleTemplate(request, { withClient, loadTemplate, verify
   }
 
   const chosen = herd
-    .filter((a) => (!location || a.location === location) && (!type || a.type === type) && (!breed || a.breed === breed))
+    .filter((a) => (!locations.length || locations.includes(a.location))
+      && (!types.length || types.includes(a.type))
+      && (!breeds.length || breeds.includes(a.breed)))
     .sort(byTag)
   if (chosen.length === 0) return json({ ok: false, message: 'No animals on the ranch match those filters.' }, 404)
   if (chosen.length > MAX_FILL_ROWS) {
