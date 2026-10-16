@@ -17,7 +17,7 @@ It has an Events tab (one row per thing that happened to an animal), an optional
 
 <UploadForm />
 
-Dashboards update about 5 to 6 minutes after a successful upload.
+Dashboards update about 2 to 3 minutes after a successful upload.
 
 <!-- Queries go at the bottom of the page. This one is also what makes Evidence write a
      data file for this page: a page with no query at all gets no file, and the site then
