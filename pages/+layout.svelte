@@ -40,6 +40,12 @@
 		href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500;600&display=swap"
 		rel="stylesheet"
 	/>
+	<!-- Cloudflare Web Analytics -->
+	<script
+		type="module"
+		src="https://static.cloudflareinsights.com/beacon.min.js"
+		data-cf-beacon={'{"token": "ee839c42f0904591ba2a66d1d91894a8"}'}
+	></script>
 </svelte:head>
 
 <!-- Bar that matches the portfolio nav (portfolio_site/components/nav.html and styles.css). -->
