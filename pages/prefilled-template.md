@@ -3,9 +3,13 @@ title: Pre-filled Template
 sidebar_link: false
 ---
 
-A test page, not linked from the rest of the site. It builds the upload template with a row already in it for each of the <Value data={herd_size} column=animals fmt=num0 /> animals on the ranch.
+A test page, not linked from the rest of the site. It builds the upload template with the rows already started, so you only type what is new. The ranch currently has <Value data={herd_size} column=animals fmt=num0 /> animals.
 
-Say what you did and when, and you get the template back with every animal's tag, breed, type and location filled in. Delete the rows for animals you did not work, fill in anything left blank (a weight, for instance), then upload the file in step 2. Every row left in the file is saved as an event, so remove the ones that do not apply.
+- **Something happened to animals already on the ranch** (a vaccination, a weighing, a pregnancy check, a sale): you get a row for every animal, with its tag, breed, type and location filled in.
+- **Calves were born:** you get a row for each mother, with her tag in the mother column, the calf's breed and location copied from her, and the birth year filled in. You add each calf's tag.
+- **You bought animals:** say how many, and you get that many empty rows plus a Transactions row ready for the price. List no tags on the Transactions row and it covers every purchase dated that day.
+
+Delete the rows that do not apply, fill in anything left blank (a weight, for instance), then upload the file in step 2. Every row left in the file is saved, so remove the ones you do not want.
 
 This is a public demo, so please use made-up data. Uploads are added to the shared herd and can be removed at any time.
 
