@@ -3,7 +3,7 @@ title: Add Events to the Data
 sidebar_link: false
 ---
 
-Download a prefilled or blank template to add events to the data.
+Download a prefilled or blank template to add events to the data. The ranch currently has <Value data={herd_size} column=animals fmt=num0 /> animals.
 
 ## Options to download
 
@@ -27,8 +27,8 @@ Need a blank template instead? <a href="/ranch-demo/cattle_upload_template.xlsx"
 
 Dashboards update about 5 to 6 minutes after a successful upload.
 
-<!-- Queries go at the bottom of the page. No text uses this one now, but a page with no query at
-     all gets no data file, and the site then fails while loading it, so keep at least one. -->
+<!-- Queries go at the bottom of the page. A page with no query at all gets no data file, and
+     the site then fails while loading it. -->
 ```sql herd_size
 select count(*) as animals from raw_current_cattle
 ```
