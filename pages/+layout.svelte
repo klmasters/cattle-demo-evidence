@@ -137,14 +137,14 @@
 	}
 
 	/* Sidebar: the current page is bold and green. The home link is bold only on the home page;
-	   elsewhere it matches the other links (the gray is picked by eye to match Evidence's). */
+	   elsewhere it matches the other links (the same muted green Evidence gives them). */
 	:global(a[data-km-active]) {
 		font-weight: 600 !important;
 		color: var(--km-leather) !important;
 	}
 	:global(a[data-km-home]:not([data-km-active])) {
 		font-weight: 400 !important;
-		color: #6b7280 !important;
+		color: rgb(118, 151, 119) !important;
 	}
 
 	/* A narrow column for a big number beside a wide chart (Grid cols=2 gives each half). */
