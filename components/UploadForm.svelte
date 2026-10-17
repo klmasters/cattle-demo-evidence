@@ -7,6 +7,7 @@
 	import { base } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { mountTurnstile } from './turnstile.js';
+	import RebuildCountdown from './RebuildCountdown.svelte';
 
 	let widgetBox;
 	let check = null; // lets us ask for a fresh token after each try
@@ -102,6 +103,7 @@
 {#if result}
 	<div class="km-result" class:ok={result.ok} role="status">
 		<p class="km-msg">{result.message}</p>
+		{#if result.ok}<RebuildCountdown />{/if}
 		{#if result.counts}
 			<p>
 				{result.counts.events} event{result.counts.events === 1 ? '' : 's'} and
