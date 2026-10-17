@@ -1,7 +1,8 @@
 <!--
   "Start from the herd": asks what happened and when, then downloads the upload template with rows
   already started (from /api/template):
-    animals already on the ranch (vaccination, weight, ...): one row per animal, with optional filters
+    animals already on the ranch (working day, pregnancy check, sold, deceased): one row per animal, with optional filters
+    moved: one row per animal not already in the chosen pasture
     birth: one row per mother, her tag in the mother column
     purchase: a chosen number of rows, plus a Transactions row ready for the price
   Nothing is saved by this form; the visitor edits the file and uploads it with the form below.
@@ -11,36 +12,37 @@
 	import { onMount } from 'svelte';
 	import { mountTurnstile } from './turnstile.js';
 
-	// kind decides which fields show: 'existing' animals, 'birth' or 'purchase'.
+	// kind decides which fields show: 'existing' animals, 'moved', 'birth' or 'purchase'.
 	const EVENT_TYPES = [
-		{ value: 'vaccination', label: 'Vaccination', kind: 'existing', hint: 'Put the vaccine name in the note and it is copied onto every row.' },
-		{ value: 'weight', label: 'Weight', kind: 'existing', hint: 'Every row needs a weight: fill in the weight_lbs column before uploading.' },
-		{ value: 'pregnant', label: 'Pregnancy check', kind: 'existing', hint: 'Optionally fill in the pregnancy columns (months pregnant, due date).' },
-		{ value: 'sold', label: 'Sold', kind: 'existing', hint: 'A sold animal leaves the herd. Add the sale on the Transactions tab too (leave its tag list empty to cover every sale on that date).' },
+		{ value: 'worked', label: 'Working day', kind: 'existing', hint: 'Say what was done in the note, for example "vaccinated (Pyramid 5); weighed", and it is copied onto every row. Weights go in the weight_lbs column.' },
+		{ value: 'preg_check', label: 'Pregnancy check', kind: 'existing', hint: 'You get a row for every cow with "preg check" in the notes. Fill in the months pregnant for each; for an open cow, change the note to "preg check - open" and leave the months blank.' },
+		{ value: 'moved', label: 'Moved to another pasture', kind: 'moved', hint: 'Choose the pasture the animals moved to. Animals already there are left out, and the old pasture goes in each note.' },
+		{ value: 'sold', label: 'Sold', kind: 'existing', hint: 'A sold animal leaves the herd. Fill in each sale weight. The Transactions tab has a row ready for the price: add price_per_cwt (or a total_amount) and leave its tag list empty to cover every sale on that date.' },
 		{ value: 'deceased', label: 'Deceased', kind: 'existing', hint: 'A deceased animal leaves the herd, and no later events can be added for it.' },
-		{ value: 'birth', label: 'Birth', kind: 'birth', hint: "One row per mother, with her tag filled in and the calf's breed and location copied from her. Add each calf's tag (and a birth weight if you have one), and delete the rows for cows that have not calved." },
-		{ value: 'purchase', label: 'Purchase', kind: 'purchase', hint: "Choose how many animals you bought, then add each animal's tag. The Transactions tab has a row ready: add the price per head and leave its tag list empty." },
+		{ value: 'birth', label: 'Birth', kind: 'birth', hint: "One row per mother, with her tag filled in and the calf's pasture copied from her. Add each calf's tag and gender (and a birth weight if you have one), and delete the rows for cows that have not calved." },
+		{ value: 'purchase', label: 'Purchase', kind: 'purchase', hint: "Choose how many animals you bought, then add each animal's tag and gender. The Transactions tab has a row ready: add the price per head and leave its tag list empty." },
 	];
-	const LOCATIONS = ['Ranch', 'Eureka'];
+	const LOCATIONS = ['Home Pasture', 'North Pasture', 'South Pasture'];
 	const TYPES = ['Cow', 'Bull', 'Calf'];
-	const BREEDS = ['Black Angus', 'Red Angus', 'Sim Angus'];
+	const GENDERS = ['Female', 'Male'];
 
 	let widgetBox;
 	let check = null;
 	let token = '';
 	let widgetNote = '';
 
-	let eventType = 'vaccination';
+	let eventType = 'worked';
 	let eventDate = ''; // set in the browser: the site is built ahead of time, so "today" must not be baked in
 	let note = '';
 	let locations = []; // ticked boxes in each group; none ticked means "any"
 	let types = [];
-	let breeds = [];
+	let genders = [];
 	let mothers = 'pregnant'; // births: 'pregnant' or 'all'
 	let count = 5; // purchases: how many rows
 	let buyLocation = ''; // purchases: one choice each, '' leaves the column blank
 	let buyType = '';
-	let buyBreed = '';
+	let buyGender = '';
+	let moveTo = ''; // moves: the pasture the animals went to
 	let busy = false;
 	let result = null; // { ok, message, advice }
 
@@ -61,14 +63,15 @@
 
 	$: chosen = EVENT_TYPES.find((t) => t.value === eventType) ?? EVENT_TYPES[0];
 	$: kind = chosen.kind;
-	$: countOk = kind !== 'purchase' || (Number.isInteger(count) && count >= 1 && count <= 500);
+	$: countOk = (kind !== 'purchase' || (Number.isInteger(count) && count >= 1 && count <= 500)) && (kind !== 'moved' || moveTo !== '');
 
 	const ADVICE = {
 		existing: 'Delete the rows for animals you did not work, fill in anything left blank, then upload the file below. Every row left in the file is saved as an event.',
-		birth: "Add each calf's tag, and delete the rows for cows that have not calved. Every row left in the file is saved as a birth.",
-		purchase: "Add each animal's tag on the Events tab, and the price per head on the Transactions tab (leave that tab's tag list empty). Every row left in the file is saved.",
+		moved: 'Delete the rows for animals that did not move, then upload the file below. Every row left in the file is saved as a move.',
+		birth: "Add each calf's tag and gender, and delete the rows for cows that have not calved. Every row left in the file is saved as a birth.",
+		purchase: "Add each animal's tag and gender on the Events tab, and the price per head on the Transactions tab (leave that tab's tag list empty). Every row left in the file is saved.",
 	};
-	const UNIT = { existing: 'animal', birth: 'mother', purchase: 'row' };
+	const UNIT = { existing: 'animal', moved: 'animal', birth: 'mother', purchase: 'row' };
 
 	async function submit() {
 		result = null;
@@ -84,12 +87,13 @@
 			form.append('count', String(count));
 			if (buyLocation) form.append('location', buyLocation);
 			if (buyType) form.append('type', buyType);
-			if (buyBreed) form.append('breed', buyBreed);
+			if (buyGender) form.append('gender', buyGender);
 		} else {
 			if (kind === 'birth') form.append('mothers', mothers);
+			if (kind === 'moved') form.append('to', moveTo);
 			for (const v of locations) form.append('location', v);
-			for (const v of breeds) form.append('breed', v);
-			if (kind === 'existing') for (const v of types) form.append('type', v);
+			if (kind !== 'birth') for (const v of genders) form.append('gender', v);
+			if (kind === 'existing' || kind === 'moved') for (const v of types) form.append('type', v);
 		}
 		form.append('cf-turnstile-response', token);
 		busy = true;
@@ -129,12 +133,12 @@
 			<span>What happened?</span>
 			<select bind:value={eventType}>
 				<optgroup label="Animals already on the ranch">
-					{#each EVENT_TYPES.filter((t) => t.kind === 'existing') as t}
+					{#each EVENT_TYPES.filter((t) => t.kind === 'existing' || t.kind === 'moved') as t}
 						<option value={t.value}>{t.label}</option>
 					{/each}
 				</optgroup>
 				<optgroup label="New animals">
-					{#each EVENT_TYPES.filter((t) => t.kind !== 'existing') as t}
+					{#each EVENT_TYPES.filter((t) => t.kind === 'birth' || t.kind === 'purchase') as t}
 						<option value={t.value}>{t.label}</option>
 					{/each}
 				</optgroup>
@@ -156,10 +160,10 @@
 			<legend>Fill in for every row <em>(optional, leave blank to choose in the file)</em></legend>
 			<div class="row three">
 				<label>
-					<span>Breed</span>
-					<select bind:value={buyBreed}>
+					<span>Gender</span>
+					<select bind:value={buyGender}>
 						<option value="">Leave blank</option>
-						{#each BREEDS as v}<option value={v}>{v}</option>{/each}
+						{#each GENDERS as v}<option value={v}>{v}</option>{/each}
 					</select>
 				</label>
 				<label>
@@ -170,7 +174,7 @@
 					</select>
 				</label>
 				<label>
-					<span>Location</span>
+					<span>Pasture</span>
 					<select bind:value={buyLocation}>
 						<option value="">Leave blank</option>
 						{#each LOCATIONS as v}<option value={v}>{v}</option>{/each}
@@ -179,6 +183,15 @@
 			</div>
 		</fieldset>
 	{:else}
+		{#if kind === 'moved'}
+			<label>
+				<span>Moved to</span>
+				<select bind:value={moveTo} required>
+					<option value="">Choose a pasture</option>
+					{#each LOCATIONS as v}<option value={v}>{v}</option>{/each}
+				</select>
+			</label>
+		{/if}
 		{#if kind === 'birth'}
 			<fieldset>
 				<legend>Which cows?</legend>
@@ -192,12 +205,12 @@
 			<legend>Only include <em>(tick any; none ticked means {kind === 'birth' ? 'every cow' : 'every animal'})</em></legend>
 			<div class="row three">
 				<div class="group">
-					<span>Location</span>
+					<span>Pasture</span>
 					{#each LOCATIONS as v}
 						<label class="check"><input type="checkbox" value={v} bind:group={locations} /> {v}</label>
 					{/each}
 				</div>
-				{#if kind === 'existing'}
+				{#if kind === 'existing' || kind === 'moved'}
 					<div class="group">
 						<span>Type</span>
 						{#each TYPES as v}
@@ -205,12 +218,14 @@
 						{/each}
 					</div>
 				{/if}
-				<div class="group">
-					<span>Breed</span>
-					{#each BREEDS as v}
-						<label class="check"><input type="checkbox" value={v} bind:group={breeds} /> {v}</label>
-					{/each}
-				</div>
+				{#if kind !== 'birth'}
+					<div class="group">
+						<span>Gender</span>
+						{#each GENDERS as v}
+							<label class="check"><input type="checkbox" value={v} bind:group={genders} /> {v}</label>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		</fieldset>
 	{/if}

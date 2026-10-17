@@ -7,13 +7,12 @@ Download a prefilled or blank template to add events to the data. The ranch curr
 
 ## Options to download
 
-- **Something happened to animals already on the ranch** (a vaccination, a weighing, a pregnancy check, a sale): you get a row for every animal, with its tag, breed, type and location filled in.
-- **Calves were born:** you get a row for each pregnant cow, with her tag in the mother column, the calf's breed and location copied from her, and the birth year filled in. You add each calf's tag.
-- **You bought animals:** say how many, and you get that many empty rows plus a Transactions row ready for the price. List no tags on the Transactions row and it covers every purchase dated that day.
+- **Something happened to animals already on the ranch** (a working day, a pregnancy check, a sale or a death): you get a row for every animal, with its tag, type, gender and pasture filled in. A working day's note (for example "vaccinated (Pyramid 5); weighed") is copied onto every row.
+- **Animals moved to another pasture:** choose the pasture, and you get a row for each animal not already there, with the old pasture in the note.
+- **Calves were born:** you get a row for each pregnant cow, with her tag in the mother column, the calf's pasture copied from her, and the birth year filled in. You add each calf's tag and gender.
+- **You bought animals:** say how many, and you get that many empty rows plus a Transactions row ready for the price. List no tags on the Transactions row and it covers every purchase dated that day. A sale works the same way.
 
-**Delete the rows that do not apply**, fill in anything left blank (a weight, for instance), then upload the file in step 2. Every row left in the file is saved, so remove the ones you do not want.
-
-All templates include a tab with a list of the current herd. This is for reference only and will not be picked up when your filled-in template is uploaded. Use it to add animals your filters may have missed.
+**Delete the rows that do not apply**, fill in anything left blank (a weight, for instance), then upload the file in step 2. Every row left in the file is saved, so remove the ones you do not want. You only need to fill in a new animal's details; for an animal already on the ranch the rest is filled in from its record.
 
 This is a public demo, so please use made-up data. Uploads are added to the shared herd and are removed on a weekly basis.
 
