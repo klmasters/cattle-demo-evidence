@@ -14,13 +14,13 @@
 
 	// kind decides which fields show: 'existing' animals, 'moved', 'birth' or 'purchase'.
 	const EVENT_TYPES = [
-		{ value: 'worked', label: 'Working day', kind: 'existing', hint: 'Say what was done in the note, for example "vaccinated (Pyramid 5); weighed", and it is copied onto every row. Weights go in the weight_lbs column.' },
-		{ value: 'preg_check', label: 'Pregnancy check', kind: 'existing', hint: 'You get a row for every cow with "preg check" in the notes. Fill in the months pregnant for each; for an open cow, change the note to "preg check - open" and leave the months blank.' },
-		{ value: 'moved', label: 'Moved to another pasture', kind: 'moved', hint: 'Choose the pasture the animals moved to. Animals already there are left out, and the old pasture goes in each note.' },
-		{ value: 'sold', label: 'Sold', kind: 'existing', hint: 'A sold animal leaves the herd. Fill in each sale weight. The Transactions tab has a row ready for the price: add price_per_cwt (or a total_amount) and leave its tag list empty to cover every sale on that date.' },
-		{ value: 'deceased', label: 'Deceased', kind: 'existing', hint: 'A deceased animal leaves the herd, and no later events can be added for it.' },
-		{ value: 'birth', label: 'Birth', kind: 'birth', hint: "One row per mother, with her tag filled in and the calf's pasture copied from her. Add each calf's tag and gender (and a birth weight if you have one), and delete the rows for cows that have not calved." },
-		{ value: 'purchase', label: 'Purchase', kind: 'purchase', hint: "Choose how many animals you bought, then add each animal's tag and gender. The Transactions tab has a row ready: add the price per head and leave its tag list empty." },
+		{ value: 'worked', label: 'worked', kind: 'existing', hint: 'Say what was done in the note, for example "vaccinated (Pyramid 5); weighed", and it is copied onto every row. Weights go in the weight_lbs column.' },
+		{ value: 'preg_check', label: 'worked (pregnancy check)', kind: 'existing', hint: 'You get a row for every cow with "preg check" in the notes. Fill in the months pregnant for each; for an open cow, change the note to "preg check - open" and leave the months blank.' },
+		{ value: 'moved', label: 'moved', kind: 'moved', hint: 'Choose the pasture the animals moved to. Animals already there are left out, and the old pasture goes in each note.' },
+		{ value: 'sold', label: 'sold', kind: 'existing', hint: 'A sold animal leaves the herd. Fill in each sale weight. The Transactions tab has a row ready for the price: add price_per_cwt (or a total_amount) and leave its tag list empty to cover every sale on that date.' },
+		{ value: 'deceased', label: 'deceased', kind: 'existing', hint: 'A deceased animal leaves the herd, and no later events can be added for it.' },
+		{ value: 'birth', label: 'birth', kind: 'birth', hint: "One row per mother, with her tag filled in and the calf's pasture copied from her. Add each calf's tag and gender (and a birth weight if you have one), and delete the rows for cows that have not calved." },
+		{ value: 'purchase', label: 'purchase', kind: 'purchase', hint: "Choose how many animals you bought, then add each animal's tag and gender. The Transactions tab has a row ready: add the price per head and leave its tag list empty." },
 	];
 	const LOCATIONS = ['Home Pasture', 'North Pasture', 'South Pasture'];
 	const TYPES = ['Cow', 'Bull', 'Calf'];
