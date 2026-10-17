@@ -1,7 +1,7 @@
 ---
 title: Pregnancy & Calving
 sidebar_position: 2
-sidebar_link: false
+dev_only: true
 ---
 
 Pregnancy checks happen each October and calving runs from January to April. The data is fake, generated for this demo.
