@@ -10,7 +10,7 @@
     "sources:strict": "evidence sources --strict",
     "preview": "evidence preview",
     "build:pages": "node scripts/drop-dev-pages.mjs && npm run sources && npm run build && node scripts/externalize-wasm.mjs",
-    "test:upload": "node --test tests/upload.test.js tests/endpoint.test.js tests/fill-template.test.js tests/template-endpoint.test.js"
+    "test:upload": "node --test tests/upload.test.js tests/endpoint.test.js tests/fill-template.test.js tests/template-endpoint.test.js tests/animal-history.test.js"
   },
   "engines": {
     "npm": ">=7.0.0",

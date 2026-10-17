@@ -55,6 +55,10 @@ This animal has no calves on record.
 {/if}
 
 ## Event history
+Download this animal's full record as a spreadsheet, one row per event.
+
+<HistoryDownload tag={inputs.tag.value} />
+
 <DataTable data={history} rows=15>
   <Column id=event_date title="Date" fmt="yyyy-mm-dd" />
   <Column id=event_type title="Event" />
