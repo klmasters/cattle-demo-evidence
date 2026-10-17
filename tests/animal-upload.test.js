@@ -67,22 +67,14 @@ test('the saved rows are skipped and only the new row is saved, filled in from t
   assert.equal(batch.params[2], 1)                             // row_count counts the new row only
 })
 
-test('a change to a saved row is ignored with a warning, and the rest still saves', async () => {
+test('a change to a saved row is ignored without a warning, and the rest still saves', async () => {
   const db = fakeDb()
   const edited = { ...SAVED[0], weight_lbs: 1500 }
   const { status, body } = await run(post(asFile([edited, SAVED[1], NEW])), db.deps)
   assert.equal(status, 200, JSON.stringify(body))
-  assert.equal(body.warningCount, 1)
-  assert.match(body.warnings[0].message, /ignored/)
-  assert.equal(body.warnings[0].row, 2)
-  assert.equal(inserted(db).params.includes(1500), false)
-})
-
-test('unchanged rows give no warning even when dates and numbers come back as other types', async () => {
-  const db = fakeDb({ saved: [{ ...SAVED[0], weight_lbs: '1013.00', event_date: '2026-05-14' }] })
-  const { status, body } = await run(post(asFile([SAVED[0], NEW])), db.deps)
-  assert.equal(status, 200, JSON.stringify(body))
   assert.equal(body.warningCount, 0)
+  assert.match(body.infos[0].message, /2 saved events in the file were skipped/)
+  assert.equal(inserted(db).params.includes(1500), false)
 })
 
 test('a new row for a different animal refuses the whole file', async () => {
@@ -146,9 +138,8 @@ test('a malformed animal tag is a plain 400', async () => {
   }
 })
 
-test('separateSavedRows: a spreadsheet date cell equals the stored date', () => {
+test('separateSavedRows: saved rows are skipped as they are, however the spreadsheet wrote them', () => {
   const sheet = { headers: [], rows: [{ row: 2, values: { ...SAVED[0], event_date: new Date('2026-05-14T00:00:00Z'), tag_number: 248 } }] }
   const r = separateSavedRows(sheet, new Map([['r1', SAVED[0]]]), '248')
   assert.deepEqual([r.skipped, r.rows.length, r.errors.length], [1, 0, 0])
-  assert.equal(r.warnings.length, 0)
 })

@@ -56,7 +56,6 @@ export async function handleUpload(request, { withClient, fetch: fetchFn = fetch
     }
 
     let { sheets, filename } = await sheetsFromForm(form, fetchFn)
-    const extraWarnings = []
     const extraInfos = []
     if (animalTag !== null && sheets.events) {
       const ids = [...new Set(sheets.events.rows.map((r) => r.values.row_id).filter((v) => v != null && String(v).trim() !== '').map((v) => String(v).trim()))]
@@ -66,10 +65,9 @@ export async function handleUpload(request, { withClient, fetch: fetchFn = fetch
       if (split.errors.length || newRows.length === 0) {
         const errors = split.errors.length ? split.errors
           : [{ sheet: 'Events', row: null, column: null, message: 'No new rows found. Add a row under the last event, leave row_id blank, and upload again.' }]
-        return json({ ok: false, message: 'Nothing was saved. Fix the problems below and upload again.', errors, errorCount: errors.length, warnings: split.warnings, warningCount: split.warnings.length, infos: [], infoCount: 0, counts: { events: 0, transactions: 0 } }, 422)
+        return json({ ok: false, message: 'Nothing was saved. Fix the problems below and upload again.', errors, errorCount: errors.length, warnings: [], warningCount: 0, infos: [], infoCount: 0, counts: { events: 0, transactions: 0 } }, 422)
       }
       sheets = { ...sheets, events: { ...sheets.events, rows: newRows } }
-      extraWarnings.push(...split.warnings)
       if (split.skipped) extraInfos.push({ sheet: 'Events', row: null, column: null, message: `${split.skipped} saved event${split.skipped === 1 ? '' : 's'} in the file ${split.skipped === 1 ? 'was' : 'were'} skipped. Only new rows are saved.` })
     }
 
@@ -84,7 +82,7 @@ export async function handleUpload(request, { withClient, fetch: fetchFn = fetch
     }
     const report = {
       errors: result.errors, errorCount: result.errorCount,
-      warnings: [...extraWarnings, ...result.warnings], warningCount: extraWarnings.length + result.warningCount,
+      warnings: result.warnings, warningCount: result.warningCount,
       infos: [...extraInfos, ...result.infos], infoCount: extraInfos.length + result.infoCount,
       counts: result.counts,
     }
