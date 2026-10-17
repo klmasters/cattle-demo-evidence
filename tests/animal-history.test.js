@@ -53,9 +53,9 @@ test('special characters in notes survive, and dropdowns are written for the lis
 test('a sold or deceased animal gets a read-only note in the Instructions tab', async () => {
   const res = await handleAnimalHistory(post({ tag: '248' }), fakeDb(ROWS))
   const files = unzipSync(new Uint8Array(await res.arrayBuffer()))
-  assert.match(strFromU8(files['xl/worksheets/sheet2.xml']), /no new events can be added/)
+  assert.match(strFromU8(files['xl/worksheets/sheet3.xml']), /no new events can be added/)
   const active = await handleAnimalHistory(post({ tag: '248' }), fakeDb(ACTIVE))
-  const text = strFromU8(unzipSync(new Uint8Array(await active.arrayBuffer()))['xl/worksheets/sheet2.xml'])
+  const text = strFromU8(unzipSync(new Uint8Array(await active.arrayBuffer()))['xl/worksheets/sheet3.xml'])
   assert.match(text, /Leave row_id blank/)
 })
 

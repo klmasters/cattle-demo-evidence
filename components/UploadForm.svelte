@@ -2,12 +2,17 @@
   The upload form. Sends the chosen file (or Google Sheets link) to /api/upload and shows what
   came back: a success message, or the list of problems the server found. Nothing is saved
   unless every row passes.
+
+  With animalTag set (Animal Lookup page) it is the "add an event to this animal" form: the tag is
+  sent along, the server saves only new rows for that animal, and the Transactions CSV box is hidden.
 -->
 <script>
 	import { base } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { mountTurnstile } from './turnstile.js';
 	import RebuildCountdown from './RebuildCountdown.svelte';
+
+	export let animalTag = '';
 
 	let widgetBox;
 	let check = null; // lets us ask for a fresh token after each try
@@ -46,6 +51,7 @@
 		if (file) form.append('file', file);
 		if (transactionsFile) form.append('transactions_file', transactionsFile);
 		if (sheetUrl.trim()) form.append('sheet_url', sheetUrl.trim());
+		if (animalTag) form.append('animal_tag', animalTag);
 		if (!file && !sheetUrl.trim()) {
 			result = { ok: false, message: 'Choose a file or paste a Google Sheets link first.' };
 			return;
@@ -69,6 +75,9 @@
 		}
 	}
 
+	// A different animal means any earlier message no longer applies.
+	$: animalTag, (result = null);
+
 	$: errors = result?.errors ?? [];
 	$: warnings = result?.warnings ?? [];
 	$: infos = result?.infos ?? [];
@@ -82,13 +91,15 @@
 
 <form class="km-upload" method="post" on:submit|preventDefault={submit}>
 	<label>
-		<span>Spreadsheet (.xlsx) or Events CSV</span>
+		<span>{animalTag ? `Your edited history file for tag ${animalTag} (.xlsx or CSV)` : 'Spreadsheet (.xlsx) or Events CSV'}</span>
 		<input type="file" accept=".xlsx,.csv" on:change={(e) => (file = e.target.files[0] ?? null)} />
 	</label>
-	<label>
-		<span>Transactions CSV <em>(optional, only with an Events CSV)</em></span>
-		<input type="file" accept=".csv" on:change={(e) => (transactionsFile = e.target.files[0] ?? null)} />
-	</label>
+	{#if !animalTag}
+		<label>
+			<span>Transactions CSV <em>(optional, only with an Events CSV)</em></span>
+			<input type="file" accept=".csv" on:change={(e) => (transactionsFile = e.target.files[0] ?? null)} />
+		</label>
+	{/if}
 	<label>
 		<span>Or a public Google Sheets link</span>
 		<input type="url" placeholder="https://docs.google.com/spreadsheets/d/..." bind:value={sheetUrl} />

@@ -111,6 +111,8 @@ const round2 = (n) => Math.round(n * 100) / 100
  * @param {{events: Sheet|null, transactions: Sheet|null}} sheets
  * @param {{today?: string, herd?: Map<string, HerdEntry>}} [options]
  *   today: 'YYYY-MM-DD' (tests set it).
+ *   onlyTag: the upload is one animal's history file: every row must be for this tag, and a sold
+ *     or deceased animal takes no new events.
  *   herd: what is already stored about the tags in the file, tag -> { status: 'active' | 'sold' |
  *     'deceased', lastEventDate, location, type, gender, birth_year, mother_tag_number, date_bought }.
  */
@@ -119,6 +121,7 @@ export function validate(sheets, options = {}) {
   const maxDate = addDays(today, 1)
   const thisYear = Number(today.slice(0, 4))
   const herd = options.herd ?? null
+  const onlyTag = options.onlyTag ?? null
 
   const errors = []
   const warnings = []
@@ -257,11 +260,14 @@ export function validate(sheets, options = {}) {
     for (const c of EVENT_REQUIRED) required(S, row, c, v)
 
     if (v.row_id != null) {
-      error(S, row, 'row_id', 'This row has a row_id, so it is an event that is already saved. Remove it, or leave row_id blank for a new event.')
+      error(S, row, 'row_id', 'This row has a row_id, so it is an event that is already saved. Leave row_id blank for a new event. (A file from an animal\'s history download is uploaded on the Animal Lookup page.)')
     }
     if (v.tag_number != null) {
       out.tag_number = parseTag(v.tag_number)
       if (!out.tag_number) error(S, row, 'tag_number', `"${v.tag_number}" is not a valid tag (letters, digits and hyphens, up to 20 characters).`)
+      else if (onlyTag && out.tag_number !== onlyTag) {
+        error(S, row, 'tag_number', `This file is for tag ${onlyTag} only, but this row is for tag ${out.tag_number}. Add events for other animals on the Add Events page.`)
+      }
     }
     if (v.event_date != null) out.event_date = dateField(S, row, 'event_date', v.event_date, { limits: true })
     if (v.event_type != null) out.event_type = listField(S, row, 'event_type', v.event_type, EVENT_TYPES)
@@ -358,12 +364,20 @@ export function validate(sheets, options = {}) {
       if ((e.event_type === 'birth' || e.event_type === 'purchase') && !intro.has(e.tag_number)) intro.set(e.tag_number, e)
     }
     const missing = new Set()
+    let refused = false
     // A new animal's birth or purchase row goes first, so its other rows can copy from it.
     const order = [...events.filter((e) => intro.get(e.tag_number) === e), ...events.filter((e) => intro.get(e.tag_number) !== e)]
     for (const e of order) {
       const known = herd.get(e.tag_number)
       const starts = intro.get(e.tag_number)
       if (known) {
+        if (onlyTag && known.status !== 'active') {
+          if (!refused) {
+            refused = true
+            error(S, e.source_row, 'tag_number', `Tag ${e.tag_number} was ${known.status === 'sold' ? 'sold' : 'reported deceased'} on ${known.lastEventDate}, so no new events can be added for it.`)
+          }
+          continue
+        }
         if (e.event_type === 'birth') {
           error(S, e.source_row, 'tag_number', `Tag ${e.tag_number} is already on file, so it cannot be born again. Use a new tag for the calf.`)
         } else if ((known.status === 'sold' || known.status === 'deceased') && e.event_date > known.lastEventDate) {

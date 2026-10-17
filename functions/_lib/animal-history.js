@@ -5,7 +5,7 @@
 // with a blank row_id; rows that keep their row_id are the existing history.
 
 import { buildWorkbook } from './xlsx-write.js'
-import { EVENT_COLUMNS, EVENT_TYPES } from './schema-v8.js'
+import { EVENT_COLUMNS, EVENT_TYPES, TRANSACTION_COLUMNS } from './schema-v8.js'
 
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
@@ -35,7 +35,8 @@ function instructions(tag, exit) {
           `  - Leave row_id blank. A row with a blank row_id is a new event.`,
           `  - Fill in tag_number (${tag}), event_date and event_type, and anything else that applies. Every new row must be for tag ${tag}.`,
           '  - Do not edit or delete the existing rows. The history is kept as recorded, and any change to an existing row is ignored.',
-          '  - Then upload the file on the Animal Lookup page.',
+          '  - If you add a purchase or a sale, you can record its price on the Transactions tab (leave tag_numbers blank and it covers the purchase or sold rows dated that day).',
+          '  - Then upload the file on the Animal Lookup page, under "Add an event to this animal".',
         ]),
     '',
     `Event types: ${EVENT_TYPES.join(', ')}.`,
@@ -43,7 +44,7 @@ function instructions(tag, exit) {
     '  moved: location is where the animal moved to.',
     '  birth: the calf is the tag_number; put the mother in mother_tag_number. weight_lbs is the birth weight.',
     '  purchase, sold, deceased: the animal enters or leaves the herd.',
-    'Only the Events tab is read when you upload. This tab is ignored.',
+    'Only the Events and Transactions tabs are read when you upload. This tab is ignored.',
   ]
   return lines.map((text) => ({ text }))
 }
@@ -87,6 +88,7 @@ export async function handleAnimalHistory(request, { withClient, verifyHuman }) 
   try {
     bytes = buildWorkbook([
       { name: 'Events', columns: EVENT_COLUMNS, rows },
+      { name: 'Transactions', columns: TRANSACTION_COLUMNS, rows: [] },
       { name: 'Instructions', columns: [{ key: 'text', header: `About this file (tag ${tag})`, kind: 'str', width: 120 }], rows: instructions(tag, exit) },
     ])
   } catch (err) {

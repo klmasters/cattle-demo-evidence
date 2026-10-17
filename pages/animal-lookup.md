@@ -80,6 +80,11 @@ Get the full record for the selected tag as a spreadsheet, one row per event.
 
 <HistoryDownload tag={inputs.tag.value} />
 
+## Add an event to this animal
+Add a row under the last event in the downloaded file, leave **row_id** blank, fill in the date, the event and anything else that applies, and upload the file here. Only the new rows are saved, and only for tag {inputs.tag.value}. Rows already in the file are skipped, and a sold or deceased animal cannot take new events.
+
+<UploadForm animalTag={inputs.tag.value} />
+
 <!-- Queries: kept at the bottom so the page layout reads top to bottom. -->
 
 ```sql tags

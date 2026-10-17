@@ -57,6 +57,22 @@ export async function loadHerd(client, tags) {
   ]))
 }
 
+// The stored events for the given row_ids (voided batches ignored), as a Map row_id -> event.
+// Used to recognise the saved rows in an animal's history file.
+export async function loadSavedEvents(client, rowIds) {
+  if (rowIds.length === 0) return new Map()
+  const { rows } = await client.query(
+    `select e.row_id, e.tag_number, e.event_date::text as event_date, e.event_type, e.location, e.type,
+            e.gender, e.birth_year, e.mother_tag_number, e.date_bought::text as date_bought,
+            e.weight_lbs, e.estimated_months_pregnant, e.notes
+       from ranch_demo.cattle_events e
+       left join ranch_demo.upload_batches b on b.batch_id = e.batch_id
+      where e.row_id = any($1) and b.voided is not true`,
+    [rowIds],
+  )
+  return new Map(rows.map((r) => [r.row_id, r]))
+}
+
 // How many batches this uploader (a hashed address, see hashIp) saved in the last hour.
 export async function recentUploads(client, uploader) {
   const { rows } = await client.query(
