@@ -34,6 +34,9 @@ This report shows a snapshot of the current herd: every animal that has not been
   <Column id=revenue title="Total received" fmt="$#,##0" />
 </DataTable>
 
+### Pregnancy Checks by Year
+<KMBarChart data={checks_by_year} x=year y=cows series=result type=stacked sort=false />
+
 <!-- Queries: kept at the bottom so the page layout reads top to bottom. -->
 
 ```sql total
@@ -108,4 +111,16 @@ from raw_cattle_transactions
 where transaction_type = 'sale' and notes ilike '%calf sale%'
 group by 1
 order by 1
+```
+
+```sql checks_by_year
+-- Every cow checked, including ones later culled. An open cow has no months pregnant.
+select
+  cast(year(event_date) as varchar) as year,
+  case when estimated_months_pregnant is null then 'Open' else 'Pregnant' end as result,
+  count(*) as cows
+from raw_cattle_events
+where notes ilike '%preg check%'
+group by 1, 2
+order by 1, 2 desc
 ```
