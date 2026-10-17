@@ -9,12 +9,6 @@ import { makeVerifier } from '../../_lib/turnstile.js'
 export async function onRequest({ request, env }) {
   return handleTemplate(request, {
     verifyHuman: makeVerifier(env.TURNSTILE_SECRET_KEY),
-    // The blank template is a static file in the site; read it from the site's own assets.
-    async loadTemplate() {
-      const response = await env.ASSETS.fetch(new URL('/cattle_upload_template.xlsx', request.url))
-      if (!response.ok) throw new Error(`blank template: status ${response.status}`)
-      return new Uint8Array(await response.arrayBuffer())
-    },
     async withClient(fn) {
       const pool = new Pool({ connectionString: env.NEON_UPLOAD_URL })
       const client = await pool.connect()
