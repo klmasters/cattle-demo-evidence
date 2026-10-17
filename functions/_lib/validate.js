@@ -7,27 +7,26 @@
 // Output: { ok, errors, warnings, infos, events, transactions, counts }. Any error means the
 // whole upload is rejected (all or nothing); warnings let it through; infos are not problems,
 // they only report what the server filled in.
+//
+// Two passes (see handle.js). Without `options.herd` only the checks inside the file run. With a
+// herd snapshot (what is already stored about the tags in the file) the server also fills in
+// blanks from the animal's record and checks the file against it.
 
-export const EVENT_TYPES = ['birth', 'purchase', 'weight', 'vaccination', 'pregnant', 'sold', 'deceased']
-export const ANIMAL_TYPES = ['Cow', 'Bull', 'Calf']
-export const LOCATIONS = ['Ranch', 'Eureka']
-export const BREEDS = ['Black Angus', 'Red Angus', 'Sim Angus']
-export const TRANSACTION_TYPES = ['purchase', 'sale']
+import { ANIMAL_TYPES, EVENT_TYPES, GENDERS, LOCATIONS, TRANSACTION_TYPES, UPLOAD_EVENT_COLUMNS, SAVED_EVENT_COLUMNS, TRANSACTION_COLUMNS as TXN_COLUMN_DEFS } from './schema-v8.js'
+
+export { ANIMAL_TYPES, EVENT_TYPES, GENDERS, LOCATIONS, TRANSACTION_TYPES }
 
 export const MAX_ROWS = 500
 const MAX_MESSAGES = 50
 export const MIN_DATE = '2000-01-01'
 
-export const EVENT_COLUMNS = [
-  'tag_number', 'event_date', 'event_type', 'location', 'breed', 'type', 'weight_lbs', 'notes',
-  'mother_tag_number', 'previous_tag_number', 'birth_year',
-  'estimated_preg_date', 'estimated_months_pregnant', 'estimated_due_month',
-]
-const EVENT_REQUIRED = ['tag_number', 'event_date', 'event_type', 'location', 'breed', 'type']
-export const TRANSACTION_COLUMNS = [
-  'transaction_date', 'transaction_type', 'tag_numbers', 'head_count', 'price_per_head', 'total_amount', 'notes',
-]
-const TRANSACTION_REQUIRED = ['transaction_date', 'transaction_type', 'tag_numbers', 'head_count', 'price_per_head', 'total_amount']
+export const EVENT_COLUMNS = UPLOAD_EVENT_COLUMNS
+const EVENT_REQUIRED = ['tag_number', 'event_date', 'event_type']
+export const TRANSACTION_COLUMNS = TXN_COLUMN_DEFS.map((c) => c.key)
+const TRANSACTION_REQUIRED = ['transaction_date', 'transaction_type']
+
+const PREG_CHECK = /preg check/i
+const PREG_OPEN = /preg check\s*-\s*open/i
 
 // ---- small helpers -------------------------------------------------------------
 
@@ -104,13 +103,16 @@ function addDays(iso, days) {
   return d.toISOString().slice(0, 10)
 }
 
+const round2 = (n) => Math.round(n * 100) / 100
+
 // ---- main ----------------------------------------------------------------------
 
 /**
  * @param {{events: Sheet|null, transactions: Sheet|null}} sheets
- * @param {{today?: string, herd?: Map<string, {status: string, lastEventDate: string}>}} [options]
- *   today: 'YYYY-MM-DD' (tests set it). herd: snapshot of the live herd, used for the
- *   checks that need the database (step 2c); without it only in-file checks run.
+ * @param {{today?: string, herd?: Map<string, HerdEntry>}} [options]
+ *   today: 'YYYY-MM-DD' (tests set it).
+ *   herd: what is already stored about the tags in the file, tag -> { status: 'active' | 'sold' |
+ *     'deceased', lastEventDate, location, type, gender, birth_year, mother_tag_number, date_bought }.
  */
 export function validate(sheets, options = {}) {
   const today = options.today ?? new Date().toISOString().slice(0, 10)
@@ -154,6 +156,7 @@ export function validate(sheets, options = {}) {
     if (event) events.push(event)
   }
   checkEventConsistency()
+  if (herd && errors.length === 0) applyHerd()
 
   // --- transactions ---
   // Matching transactions to events only makes sense when every event row was readable.
@@ -184,16 +187,21 @@ export function validate(sheets, options = {}) {
   function finish() {
     return {
       ok: errors.length === 0,
-      errors: errors.slice(0, MAX_MESSAGES),
+      errors: inOrder(errors).slice(0, MAX_MESSAGES),
       errorCount: errors.length,
-      warnings: warnings.slice(0, MAX_MESSAGES),
+      warnings: inOrder(warnings).slice(0, MAX_MESSAGES),
       warningCount: warnings.length,
-      infos: infos.slice(0, MAX_MESSAGES),
+      infos: inOrder(infos).slice(0, MAX_MESSAGES),
       infoCount: infos.length,
       events: errors.length ? [] : events,
       transactions: errors.length ? [] : transactions,
       counts: { events: events.length, transactions: transactions.length },
     }
+  }
+
+  // Messages read best by tab, then row (the herd pass adds some out of order).
+  function inOrder(list) {
+    return [...list].sort((a, b) => a.sheet.localeCompare(b.sheet) || (a.row ?? 0) - (b.row ?? 0))
   }
 
   function checkHeaders(name, sheet, known, required) {
@@ -243,11 +251,14 @@ export function validate(sheets, options = {}) {
   function checkEventRow(row, v) {
     const S = 'Events'
     const before = errors.length
-    const out = Object.fromEntries(EVENT_COLUMNS.map((c) => [c, null]))
+    const out = Object.fromEntries(SAVED_EVENT_COLUMNS.map((c) => [c, null]))
     out.source_row = row
 
     for (const c of EVENT_REQUIRED) required(S, row, c, v)
 
+    if (v.row_id != null) {
+      error(S, row, 'row_id', 'This row has a row_id, so it is an event that is already saved. Remove it, or leave row_id blank for a new event.')
+    }
     if (v.tag_number != null) {
       out.tag_number = parseTag(v.tag_number)
       if (!out.tag_number) error(S, row, 'tag_number', `"${v.tag_number}" is not a valid tag (letters, digits and hyphens, up to 20 characters).`)
@@ -255,17 +266,14 @@ export function validate(sheets, options = {}) {
     if (v.event_date != null) out.event_date = dateField(S, row, 'event_date', v.event_date, { limits: true })
     if (v.event_type != null) out.event_type = listField(S, row, 'event_type', v.event_type, EVENT_TYPES)
     if (v.location != null) out.location = listField(S, row, 'location', v.location, LOCATIONS)
-    if (v.breed != null) out.breed = listField(S, row, 'breed', v.breed, BREEDS)
     if (v.type != null) out.type = listField(S, row, 'type', v.type, ANIMAL_TYPES)
+    if (v.gender != null) out.gender = listField(S, row, 'gender', v.gender, GENDERS)
 
     if (v.weight_lbs != null) {
       const w = parseNumber(v.weight_lbs)
       if (w === null || w <= 0 || w > 3000) error(S, row, 'weight_lbs', `"${v.weight_lbs}" is not a weight between 0 and 3000 lb.`)
       else out.weight_lbs = w
-    } else if (out.event_type === 'weight') {
-      error(S, row, 'weight_lbs', 'A weight event needs a weight.')
     }
-
     if (v.birth_year != null) {
       const y = parseNumber(v.birth_year)
       if (y === null || !Number.isInteger(y) || y < 1980 || y > thisYear) error(S, row, 'birth_year', `"${v.birth_year}" is not a year between 1980 and ${thisYear}.`)
@@ -273,17 +281,13 @@ export function validate(sheets, options = {}) {
     }
     if (v.estimated_months_pregnant != null) {
       const n = parseNumber(v.estimated_months_pregnant)
-      if (n === null || !Number.isInteger(n) || n < 0 || n > 10) error(S, row, 'estimated_months_pregnant', `"${v.estimated_months_pregnant}" is not a whole number of months between 0 and 10.`)
+      if (n === null || !Number.isInteger(n) || n < 1 || n > 9) error(S, row, 'estimated_months_pregnant', `"${v.estimated_months_pregnant}" is not a whole number of months between 1 and 9.`)
       else out.estimated_months_pregnant = n
     }
-    for (const c of ['estimated_preg_date', 'estimated_due_month']) {
-      if (v[c] != null) out[c] = dateField(S, row, c, v[c], { limits: false })
-    }
-    for (const c of ['mother_tag_number', 'previous_tag_number']) {
-      if (v[c] != null) {
-        out[c] = parseTag(v[c])
-        if (!out[c]) error(S, row, c, `"${v[c]}" is not a valid tag.`)
-      }
+    if (v.date_bought != null) out.date_bought = dateField(S, row, 'date_bought', v.date_bought, { limits: true })
+    if (v.mother_tag_number != null) {
+      out.mother_tag_number = parseTag(v.mother_tag_number)
+      if (!out.mother_tag_number) error(S, row, 'mother_tag_number', `"${v.mother_tag_number}" is not a valid tag.`)
     }
     if (v.notes != null) {
       const notes = String(v.notes)
@@ -291,8 +295,22 @@ export function validate(sheets, options = {}) {
       else out.notes = notes
     }
 
-    if (out.event_type === 'birth' && v.mother_tag_number == null) warn(S, row, 'mother_tag_number', 'A birth event usually has the mother\'s tag.')
-    if (out.event_type === 'pregnant' && v.estimated_due_month == null) warn(S, row, 'estimated_due_month', 'A pregnant event usually has an estimated due month; it will not show on the due-date chart without one.')
+    // A pregnancy check is a working day with "preg check" in the notes. A positive check gives the
+    // months pregnant; an open cow ("preg check - open") has none.
+    const notes = out.notes ?? ''
+    if (PREG_CHECK.test(notes) && out.event_type && out.event_type !== 'worked') {
+      error(S, row, 'event_type', 'A pregnancy check is recorded as event_type worked, with "preg check" in the notes.')
+    } else if (out.event_type === 'worked' && PREG_CHECK.test(notes)) {
+      if (PREG_OPEN.test(notes) && v.estimated_months_pregnant != null) {
+        error(S, row, 'estimated_months_pregnant', 'An open cow ("preg check - open") has no months pregnant. Leave this blank.')
+      } else if (!PREG_OPEN.test(notes) && v.estimated_months_pregnant == null) {
+        error(S, row, 'estimated_months_pregnant', 'A pregnancy check needs the months pregnant. For an open cow, write "preg check - open" in the notes instead.')
+      }
+    } else if (v.estimated_months_pregnant != null) {
+      error(S, row, 'estimated_months_pregnant', 'Months pregnant only goes with a "preg check" note on a worked event.')
+    }
+
+    if (out.event_type === 'birth' && v.mother_tag_number == null) warn(S, row, 'mother_tag_number', "A birth event usually has the mother's tag.")
 
     return errors.length === before ? out : null
   }
@@ -319,26 +337,76 @@ export function validate(sheets, options = {}) {
         error(S, e.source_row, 'event_date', `Tag ${e.tag_number} was ${end.type} on ${end.date}, so it cannot have an event on ${e.event_date}.`)
       }
     }
-    // Same tag with different breed or type in different rows.
+    // Same tag with a different type or gender in different rows.
     const traits = new Map()
     for (const e of events) {
       const prior = traits.get(e.tag_number)
-      if (!prior) traits.set(e.tag_number, { breed: e.breed, type: e.type, row: e.source_row, warned: false })
-      else if (!prior.warned && (prior.breed !== e.breed || prior.type !== e.type)) {
+      if (!prior) traits.set(e.tag_number, { type: e.type, gender: e.gender, row: e.source_row, warned: false })
+      else if (!prior.warned && ((prior.type && e.type && prior.type !== e.type) || (prior.gender && e.gender && prior.gender !== e.gender))) {
         prior.warned = true
-        warn(S, e.source_row, 'breed', `Tag ${e.tag_number} has a different breed or type than on row ${prior.row}.`)
+        warn(S, e.source_row, 'type', `Tag ${e.tag_number} has a different type or gender than on row ${prior.row}.`)
       }
     }
-    // Checks against the live herd (step 2c supplies the snapshot).
-    if (herd) {
-      for (const e of events) {
-        const known = herd.get(e.tag_number)
-        if (!known) continue
-        if ((known.status === 'sold' || known.status === 'deceased') && e.event_date > known.lastEventDate) {
+  }
+
+  // Needs the herd snapshot. Fills blanks from the animal's record, then checks each row against it.
+  function applyHerd() {
+    const S = 'Events'
+    // An animal that is not stored yet must arrive in this file by a birth or purchase row.
+    const intro = new Map()
+    for (const e of events) {
+      if ((e.event_type === 'birth' || e.event_type === 'purchase') && !intro.has(e.tag_number)) intro.set(e.tag_number, e)
+    }
+    const missing = new Set()
+    // A new animal's birth or purchase row goes first, so its other rows can copy from it.
+    const order = [...events.filter((e) => intro.get(e.tag_number) === e), ...events.filter((e) => intro.get(e.tag_number) !== e)]
+    for (const e of order) {
+      const known = herd.get(e.tag_number)
+      const starts = intro.get(e.tag_number)
+      if (known) {
+        if (e.event_type === 'birth') {
+          error(S, e.source_row, 'tag_number', `Tag ${e.tag_number} is already on file, so it cannot be born again. Use a new tag for the calf.`)
+        } else if ((known.status === 'sold' || known.status === 'deceased') && e.event_date > known.lastEventDate) {
           error(S, e.source_row, 'tag_number', `Tag ${e.tag_number} is already recorded as ${known.status} (${known.lastEventDate}).`)
         } else if (known.status === 'active' && e.event_type === 'purchase') {
           warn(S, e.source_row, 'event_type', `Tag ${e.tag_number} is already on the ranch, so a purchase is unusual.`)
         }
+      } else if (!starts) {
+        if (!missing.has(e.tag_number)) {
+          missing.add(e.tag_number)
+          error(S, e.source_row, 'tag_number', `Tag ${e.tag_number} is not on file. Add a birth or purchase row for it first.`)
+        }
+        continue
+      } else if (e.event_date < starts.event_date) {
+        error(S, e.source_row, 'event_date', `Tag ${e.tag_number} has a ${starts.event_type} on ${starts.event_date}, so it cannot have an event on ${e.event_date}.`)
+      }
+
+      // Blanks come from the stored record, or for a new animal from its birth or purchase row.
+      const base = known ?? starts ?? {}
+      const isStart = e === starts
+      for (const c of ['type', 'gender', 'birth_year', 'mother_tag_number', 'date_bought']) {
+        if (e[c] == null && base[c] != null && !isStart) e[c] = base[c]
+      }
+      if (e.event_type === 'birth') {
+        if (e.type == null) e.type = 'Calf'
+        if (e.birth_year == null) e.birth_year = Number(e.event_date.slice(0, 4))
+      }
+      if (e.event_type === 'purchase' && e.date_bought == null) e.date_bought = e.event_date
+      if (e.gender == null && e.type === 'Cow') e.gender = 'Female'
+      if (e.gender == null && e.type === 'Bull') e.gender = 'Male'
+      if (e.location == null && e.event_type !== 'moved' && e.event_type !== 'birth' && e.event_type !== 'purchase') e.location = base.location ?? null
+
+      for (const c of ['location', 'type', 'gender']) {
+        if (e[c] != null) continue
+        if (c === 'location' && e.event_type === 'moved') error(S, e.source_row, c, 'This is required for a move: it is the pasture the animal moved to.')
+        else if (!known) error(S, e.source_row, c, `This is required because tag ${e.tag_number} is new.`)
+        else error(S, e.source_row, c, 'This is required.')
+      }
+      if (e.event_type === 'moved' && known && known.location === e.location) {
+        warn(S, e.source_row, 'location', `Tag ${e.tag_number} is already in ${e.location}.`)
+      }
+      if (e.event_type === 'birth' && e.mother_tag_number && !herd.has(e.mother_tag_number) && !intro.has(e.mother_tag_number)) {
+        warn(S, e.source_row, 'mother_tag_number', `Mother ${e.mother_tag_number} is not on file.`)
       }
     }
   }
@@ -346,19 +414,17 @@ export function validate(sheets, options = {}) {
   function checkTransactionRow(row, v) {
     const S = 'Transactions'
     const before = errors.length
-    const out = { source_row: row, notes: null }
+    const out = Object.fromEntries(TRANSACTION_COLUMNS.map((c) => [c, null]))
+    out.source_row = row
 
-    // With no tags listed the row is a shortcut (see above): head_count and total_amount may be
-    // blank too, and are worked out. A row that lists its tags follows the original rules.
-    const shortcut = v.tag_numbers == null
-    for (const c of TRANSACTION_REQUIRED) {
-      if (shortcut && (c === 'tag_numbers' || c === 'head_count' || c === 'total_amount')) continue
-      required(S, row, c, v)
-    }
+    for (const c of TRANSACTION_REQUIRED) required(S, row, c, v)
 
     if (v.transaction_date != null) out.transaction_date = dateField(S, row, 'transaction_date', v.transaction_date, { limits: true })
     if (v.transaction_type != null) out.transaction_type = listField(S, row, 'transaction_type', v.transaction_type, TRANSACTION_TYPES)
 
+    // With no tags listed the row is a shortcut (see above); head count, weight and amounts
+    // are worked out where they can be.
+    const shortcut = v.tag_numbers == null
     if (v.tag_numbers != null) {
       const parts = String(v.tag_numbers).split(/[,;|]/).map((t) => t.trim()).filter(Boolean)
       const tags = parts.map(parseTag)
@@ -377,27 +443,26 @@ export function validate(sheets, options = {}) {
         if (out.tag_numbers && out.tag_numbers.length !== n) error(S, row, 'head_count', `head_count is ${n} but ${out.tag_numbers.length} tag(s) are listed.`)
       }
     }
-    for (const [c, max] of [['price_per_head', 1_000_000], ['total_amount', 10_000_000]]) {
+    for (const [c, min, max] of [
+      ['total_weight_lbs', 1, 2_000_000],
+      ['price_per_cwt', 0, 5000],
+      ['price_per_head', 0, 1_000_000],
+      ['total_amount', 0, 10_000_000],
+    ]) {
       if (v[c] != null) {
         const n = parseNumber(v[c])
-        if (n === null || n < 0 || n > max) error(S, row, c, `"${v[c]}" is not a dollar amount between 0 and ${max.toLocaleString('en-US')}.`)
+        if (n === null || n < min || n > max) error(S, row, c, `"${v[c]}" is not a number between ${min.toLocaleString('en-US')} and ${max.toLocaleString('en-US')}.`)
         else out[c] = n
       }
-    }
-    if (shortcut) {
-      if (!eventsReadable) {
-        out.tag_numbers = [] // the upload fails on the events anyway; keeps later checks from tripping
-      } else if (errors.length === before) {
-        linkEvents(S, row, out)
-      }
-    }
-    if (out.price_per_head != null && out.total_amount != null && out.head_count != null &&
-        Math.abs(out.price_per_head * out.head_count - out.total_amount) > 1) {
-      error(S, row, 'total_amount', `total_amount should be price_per_head x head_count (${out.price_per_head * out.head_count}), not ${out.total_amount}.`)
     }
     if (v.notes != null) {
       if (String(v.notes).length > 500) error(S, row, 'notes', 'Notes are limited to 500 characters.')
       else out.notes = String(v.notes)
+    }
+
+    if (shortcut && errors.length === before) {
+      if (!eventsReadable) out.tag_numbers = [] // the upload fails on the events anyway; keeps later checks from tripping
+      else linkEvents(S, row, out)
     }
 
     // Each tag needs a matching event in the same file.
@@ -412,11 +477,47 @@ export function validate(sheets, options = {}) {
         }
       }
     }
+    if (errors.length === before && eventsReadable) completeMoney(S, row, out)
     return errors.length === before ? out : null
   }
 
-  // The shortcut: fill tag_numbers, head_count and total_amount from the purchase (or sold) events
-  // dated the same day as this transaction. Adds to `out`; reports a problem as an error.
+  // Works out whatever of head_count, total_weight_lbs, total_amount, price_per_head and price_per_cwt
+  // was left blank, and checks the ones given against each other.
+  function completeMoney(S, row, out) {
+    if (out.head_count == null) out.head_count = out.tag_numbers.length
+    if (out.total_weight_lbs == null && eventsReadable) {
+      const wanted = out.transaction_type === 'purchase' ? 'purchase' : 'sold'
+      const linked = out.tag_numbers.map((tag) => events.find((e) => e.tag_number === tag && e.event_type === wanted))
+      if (linked.length && linked.every((e) => e && e.weight_lbs != null)) {
+        out.total_weight_lbs = linked.reduce((sum, e) => sum + e.weight_lbs, 0)
+        info(S, row, 'total_weight_lbs', `No weight was given, so it was added up from the ${linked.length} event weight(s): ${out.total_weight_lbs} lb.`)
+      }
+    }
+
+    const head = out.head_count
+    let total = out.total_amount
+    if (total == null && out.price_per_head != null) total = round2(out.price_per_head * head)
+    if (total == null && out.total_weight_lbs != null && out.price_per_cwt != null) total = round2((out.total_weight_lbs * out.price_per_cwt) / 100)
+    if (total == null) {
+      error(S, row, 'total_amount', 'Give a total_amount, a price_per_head, or total_weight_lbs together with price_per_cwt.')
+      return
+    }
+    if (out.price_per_head != null && Math.abs(out.price_per_head * head - total) > 1) {
+      error(S, row, 'total_amount', `total_amount should be price_per_head x head_count (${round2(out.price_per_head * head)}), not ${total}.`)
+      return
+    }
+    if (out.total_weight_lbs != null && out.price_per_cwt != null &&
+        Math.abs((out.total_weight_lbs * out.price_per_cwt) / 100 - total) > Math.max(5, total * 0.005)) {
+      error(S, row, 'total_amount', `total_amount should be total_weight_lbs x price_per_cwt / 100 (${round2((out.total_weight_lbs * out.price_per_cwt) / 100)}), not ${total}.`)
+      return
+    }
+    out.total_amount = total
+    if (out.price_per_head == null) out.price_per_head = round2(total / head)
+    if (out.price_per_cwt == null && out.total_weight_lbs != null) out.price_per_cwt = round2((total / out.total_weight_lbs) * 100)
+  }
+
+  // The shortcut: fill tag_numbers (and later head_count and amounts) from the purchase (or sold)
+  // events dated the same day as this transaction. Reports a problem as an error.
   function linkEvents(S, row, out) {
     const wanted = out.transaction_type === 'purchase' ? 'purchase' : 'sold'
     const day = `${wanted}|${out.transaction_date}`
@@ -442,7 +543,6 @@ export function validate(sheets, options = {}) {
     }
     out.tag_numbers = tags
     out.head_count = tags.length
-    if (out.total_amount == null) out.total_amount = Math.round(out.price_per_head * tags.length * 100) / 100
     info(S, row, 'tag_numbers', `No tags were listed, so they were filled in: this row covers the ${tags.length} ${wanted} event(s) dated ${out.transaction_date} (${tags.join(', ')}).`)
   }
 

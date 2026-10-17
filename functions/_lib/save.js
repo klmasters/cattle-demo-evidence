@@ -2,14 +2,8 @@
 // method (a Neon pool client in production, a fake in tests). Every value goes in as a
 // parameter ($1, $2, ...), never glued into the SQL text.
 
-const EVENT_COLUMNS = [
-  'tag_number', 'event_date', 'event_type', 'location', 'breed', 'type', 'weight_lbs', 'notes',
-  'mother_tag_number', 'previous_tag_number', 'birth_year',
-  'estimated_preg_date', 'estimated_months_pregnant', 'estimated_due_month',
-]
-const TRANSACTION_COLUMNS = [
-  'transaction_date', 'transaction_type', 'tag_numbers', 'head_count', 'price_per_head', 'total_amount', 'notes',
-]
+import { SAVED_EVENT_COLUMNS as EVENT_COLUMNS } from './schema-v8.js'
+import { TRANSACTION_COLUMNS } from './validate.js'
 
 // Fingerprint of the cleaned content, so the same data is caught as a repeat even if it
 // arrives as a different file type or with different formatting.
@@ -22,20 +16,44 @@ export async function contentHash(events, transactions) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-// Status of each tag in the upload, from events already stored (voided batches ignored).
-// Shape matches the `herd` option of validate().
+// What is stored about each tag in the upload, from events already saved (voided batches ignored).
+// Shape matches the `herd` option of validate(): status comes from the latest event (a sold or
+// deceased event wins a same-day tie, as in the current_cattle view), location is where the animal
+// last was, and the other traits are the values recorded on its rows.
 export async function loadHerd(client, tags) {
   const { rows } = await client.query(
-    `select distinct on (e.tag_number) e.tag_number, e.event_type, e.event_date::text as event_date
-       from ranch_demo.cattle_events e
-       left join ranch_demo.upload_batches b on b.batch_id = e.batch_id
-      where b.voided is not true and e.tag_number = any($1)
-      order by e.tag_number, e.event_date desc, e.id desc`,
+    `with ev as (
+       select e.* from ranch_demo.cattle_events e
+         left join ranch_demo.upload_batches b on b.batch_id = e.batch_id
+        where b.voided is not true and e.tag_number = any($1)
+     ),
+     latest as (
+       select distinct on (tag_number) tag_number, event_type, event_date::text as event_date, location
+         from ev
+        order by tag_number, event_date desc, (event_type in ('sold', 'deceased')) desc, id desc
+     ),
+     traits as (
+       select tag_number, max(type) as type, max(gender) as gender, max(birth_year) as birth_year,
+              max(mother_tag_number) as mother_tag_number, max(date_bought)::text as date_bought
+         from ev group by tag_number
+     )
+     select l.tag_number, l.event_type, l.event_date, l.location, t.type, t.gender, t.birth_year,
+            t.mother_tag_number, t.date_bought
+       from latest l join traits t using (tag_number)`,
     [tags],
   )
   return new Map(rows.map((r) => [
     r.tag_number,
-    { status: r.event_type === 'sold' || r.event_type === 'deceased' ? r.event_type : 'active', lastEventDate: r.event_date },
+    {
+      status: r.event_type === 'sold' || r.event_type === 'deceased' ? r.event_type : 'active',
+      lastEventDate: r.event_date,
+      location: r.location,
+      type: r.type,
+      gender: r.gender,
+      birth_year: r.birth_year == null ? null : Number(r.birth_year),
+      mother_tag_number: r.mother_tag_number,
+      date_bought: r.date_bought,
+    },
   ]))
 }
 

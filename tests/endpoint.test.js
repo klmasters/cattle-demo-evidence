@@ -29,7 +29,7 @@ function post(fields) {
 }
 const xlsxFile = () => new File([xlsxBytes], 'herd.xlsx')
 const csvFile = (text, name = 'events.csv') => new File([text], name)
-const CSV_HEADER = 'tag_number,event_date,event_type,location,breed,type,weight_lbs\n'
+const CSV_HEADER = 'tag_number,event_date,event_type,location,type,gender,weight_lbs\n'
 const run = async (request, deps) => {
   const res = await handleUpload(request, deps)
   return { status: res.status, body: await res.json() }
@@ -42,21 +42,21 @@ test('good xlsx is saved in one transaction with parameterized SQL', async () =>
   assert.equal(body.ok, true)
   assert.equal(body.batchId, BATCH_ID)
   const sqls = db.queries.map((q) => q.sql)
-  assert.equal(sqls[0].startsWith('select distinct on'), true)   // herd lookup first
+  assert.match(sqls[0], /distinct on/)                          // herd lookup first
   assert.deepEqual(sqls.filter((s) => /^(begin|commit|rollback)$/.test(s)), ['begin', 'commit'])
   const events = db.queries.find((q) => q.sql.startsWith('insert into ranch_demo.cattle_events'))
-  assert.equal(events.params.length, 3 * 15)              // 3 rows x (batch_id + 14 columns)
+  assert.equal(events.params.length, 3 * 13)              // 3 rows x (batch_id + 12 columns)
   assert.equal(events.params[0], BATCH_ID)
   assert.match(events.sql, /\(\$1, \$2, /)               // values are placeholders, not text
-  assert.equal(events.sql.includes('Black Angus'), false)
+  assert.equal(events.sql.includes('Home Pasture'), false)
   const txns = db.queries.find((q) => q.sql.startsWith('insert into ranch_demo.cattle_transactions'))
   assert.equal(txns.params[0], 'UP-1a2b3c4d-1')
-  assert.deepEqual(txns.params[4], ['902'])
+  assert.deepEqual(txns.params[4], ['901'])
 })
 
 test('a file with errors saves nothing and returns row-level errors', async () => {
   const db = fakeDb()
-  const { status, body } = await run(post({ file: csvFile(CSV_HEADER + '901,2026-05-03,vaccinated,Moon,Black Angus,Calf,\n') }), db.deps)
+  const { status, body } = await run(post({ file: csvFile(CSV_HEADER + '901,2026-05-03,vaccinated,Moon,Cow,Female,\n') }), db.deps)
   assert.equal(status, 422)
   assert.equal(body.ok, false)
   assert.equal(body.errors[0].row, 2)
@@ -73,7 +73,7 @@ test('the same content twice: second upload is a duplicate and rolls back', asyn
 })
 
 test('live herd check: an event for a tag already sold is rejected', async () => {
-  const db = fakeDb({ herdRows: [{ tag_number: '901', event_type: 'sold', event_date: '2026-04-01' }] })
+  const db = fakeDb({ herdRows: [{ tag_number: '901', event_type: 'sold', event_date: '2026-04-01', location: 'Home Pasture', type: 'Cow', gender: 'Female', birth_year: 2019, mother_tag_number: null, date_bought: null }] })
   const { status, body } = await run(post({ file: xlsxFile() }), db.deps)
   assert.equal(status, 422)
   assert.match(body.errors[0].message, /already recorded as sold/)
@@ -81,7 +81,7 @@ test('live herd check: an event for a tag already sold is rejected', async () =>
 
 test('CSV events plus CSV transactions', async () => {
   const db = fakeDb()
-  const events = CSV_HEADER + '902,2026-05-02,purchase,Eureka,Red Angus,Cow,\n'
+  const events = CSV_HEADER + '902,2026-05-02,purchase,Home Pasture,Cow,Female,\n'
   const txns = 'transaction_date,transaction_type,tag_numbers,head_count,price_per_head,total_amount\n2026-05-02,purchase,902,1,1800,1800\n'
   const { status, body } = await run(post({ file: csvFile(events), transactions_file: csvFile(txns, 't.csv') }), db.deps)
   assert.equal(status, 200, JSON.stringify(body))
@@ -90,7 +90,7 @@ test('CSV events plus CSV transactions', async () => {
 
 test('a transaction with blank tags is saved with its tags filled in, and the response says so as a note', async () => {
   const db = fakeDb()
-  const events = CSV_HEADER + '902,2026-05-02,purchase,Eureka,Red Angus,Cow,\n903,2026-05-02,purchase,Eureka,Red Angus,Cow,\n'
+  const events = CSV_HEADER + '902,2026-05-02,purchase,Home Pasture,Cow,Female,\n903,2026-05-02,purchase,Home Pasture,Cow,Female,\n'
   const txns = 'transaction_date,transaction_type,tag_numbers,head_count,price_per_head,total_amount\n2026-05-02,purchase,,,1800,\n'
   const { status, body } = await run(post({ file: csvFile(events), transactions_file: csvFile(txns, 't.csv') }), db.deps)
   assert.equal(status, 200, JSON.stringify(body))

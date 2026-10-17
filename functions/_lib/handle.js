@@ -52,7 +52,7 @@ export async function handleUpload(request, { withClient, fetch: fetchFn = fetch
     let result = validate(sheets)
     if (result.ok) {
       // Second pass with the live herd, for problems that depend on what is stored.
-      const tags = [...new Set(result.events.map((e) => e.tag_number))]
+      const tags = [...new Set(result.events.flatMap((e) => [e.tag_number, e.mother_tag_number].filter(Boolean)))]
       const herd = await withClient((client) => loadHerd(client, tags))
       result = validate(sheets, { herd })
     }
