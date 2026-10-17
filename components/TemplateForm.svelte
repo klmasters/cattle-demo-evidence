@@ -130,7 +130,7 @@
 <form class="km-prefill" method="post" on:submit|preventDefault={submit}>
 	<div class="row">
 		<label>
-			<span>What happened?</span>
+			<span>Event</span>
 			<select bind:value={eventType}>
 				<optgroup label="Animals already on the ranch">
 					{#each EVENT_TYPES.filter((t) => t.kind === 'existing' || t.kind === 'moved') as t}
