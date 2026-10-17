@@ -17,12 +17,6 @@ This report shows a snapshot of the current herd: every animal that has not been
   <KMBarChart data={cows_by_age} x=age y=cows sort=false title="Cows by Age (years)" />
 </Grid>
 
-### Cow Weights
-<Grid cols=2>
-  <KMBarChart data={weight_by_location} x=location y=avg_weight_lbs yFmt="#,##0" title="Average Cow Weight by Pasture (lb)" />
-  <KMBarChart data={weight_by_age} x=age y=avg_weight_lbs sort=false yFmt="#,##0" title="Average Cow Weight by Age (lb)" />
-</Grid>
-
 ### Herd Over Time
 <KMAreaChart data={herd_over_time} x=month y=animals series=type title="Head on the Ranch, Month End" />
 
@@ -63,25 +57,6 @@ order by 2 desc
 select
   cast(year(ref.d) - cur.birth_year as integer) as age,
   count(*) as cows
-from raw_current_cattle cur
-cross join (select max(event_date) as d from raw_cattle_events) ref
-where cur.type = 'Cow'
-group by 1
-order by 1
-```
-
-```sql weight_by_location
-select location, round(avg(last_weight_lbs)) as avg_weight_lbs
-from raw_current_cattle
-where type = 'Cow'
-group by 1
-order by 2 desc
-```
-
-```sql weight_by_age
-select
-  cast(year(ref.d) - cur.birth_year as integer) as age,
-  round(avg(cur.last_weight_lbs)) as avg_weight_lbs
 from raw_current_cattle cur
 cross join (select max(event_date) as d from raw_cattle_events) ref
 where cur.type = 'Cow'
